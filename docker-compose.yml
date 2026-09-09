@@ -1,0 +1,131 @@
+# BookNest 书籍交流社区 - Docker Compose 编排
+# 差异说明（相对 CoderHub）：
+#   - 无 MinIO：对象存储改用阿里云 OSS 云服务（OSS_* 环境变量），不落本地
+#   - 无 ChromaDB：向量库 P4 阶段用阿里云 AnalyticDB zvector 云服务，不在 compose 中
+#   - 数据库名为 booknest（对应 user_table.sql）
+#   - AI 用 DeepSeek + 阿里云 DashScope（embedding），预留 DEEPSEEK_API_KEY / DASHSCOPE_API_KEY
+
+services:
+  # MySQL 数据库（初始化 booknest 库，自动执行 booknest_data/sql 下的建表脚本）
+  mysql:
+    image: mysql:8.0
+    container_name: booknest-mysql
+    restart: always
+    environment:
+      MYSQL_DATABASE: booknest          # 初始化数据库名（与 application.yml 的 DB_NAME 对齐）
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./booknest_data/mysql/data:/var/lib/mysql            # 数据持久化
+      - ./booknest_data/sql:/docker-entrypoint-initdb.d      # 自动执行初始化 SQL（含 user_table.sql）
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    deploy:
+      resources:
+        limits:
+          memory: 512M # 针对 2G 内存进行精细化限制
+
+  # Redis 缓存（带密码，与 REDIS_PASSWORD 对齐）
+  redis:
+    image: redis:7
+    container_name: booknest-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    command: redis-server --requirepass ${REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - ./booknest_data/redis/data:/data
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+
+  # RabbitMQ 消息队列（通知异步解耦，管理界面端口 15672）
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: booknest-rabbitmq
+    restart: always
+    ports:
+      - "5672:5672"    # AMQP 协议端口
+      - "15672:15672"  # 管理界面端口
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USERNAME}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+      # 限制内存水位为系统内存的 20%，避免在 2G 机器上 OOM
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbit vm_memory_high_watermark 0.2"
+    volumes:
+      - ./booknest_data/rabbitmq/data:/var/lib/rabbitmq
+    deploy:
+      resources:
+        limits:
+          memory: 300M
+
+  # BookNest 后端应用 (Java 17 + Spring Boot)
+  app:
+    build:
+      context: ./booknest_backend
+      dockerfile: Dockerfile
+    image: booknest-server:latest
+    container_name: booknest-app
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mysql
+      - redis
+      - rabbitmq
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      # 数据源（服务名作为容器内 host）
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_NAME=booknest
+      - DB_USERNAME=root
+      - DB_PASSWORD=${DB_PASSWORD}
+      # Redis
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+      # RabbitMQ
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USERNAME=${RABBITMQ_USERNAME}
+      - RABBITMQ_PASSWORD=${RABBITMQ_PASSWORD}
+      # JWT（密钥必须注入，TTL/令牌名有 application.yml 默认值兜底）
+      - JWT_USER_SECRET=${JWT_USER_SECRET}
+      - JWT_USER_TTL=${JWT_USER_TTL:-7200000}
+      - JWT_USER_TOKEN_NAME=${JWT_USER_TOKEN_NAME:-authentication}
+      - JWT_ADMIN_SECRET=${JWT_ADMIN_SECRET}
+      - JWT_ADMIN_TTL=${JWT_ADMIN_TTL:-7200000}
+      - JWT_ADMIN_TOKEN_NAME=${JWT_ADMIN_TOKEN_NAME:-admin-authentication}
+      # 阿里云 OSS 对象存储（无 MinIO，云服务）
+      - OSS_ENDPOINT=${OSS_ENDPOINT}
+      - OSS_ACCESS_KEY_ID=${OSS_ACCESS_KEY_ID}
+      - OSS_ACCESS_KEY_SECRET=${OSS_ACCESS_KEY_SECRET}
+      - OSS_BUCKET_NAME=${OSS_BUCKET_NAME}
+      # AI（P4 阶段启用：DeepSeek 对话 + DashScope embedding）
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DASHSCOPE_API_KEY=${DASHSCOPE_API_KEY}
+    deploy:
+      resources:
+        limits:
+          memory: 800M
+
+  # BookNest 前端应用 (Vue 3 + Vite + Nginx)
+  # 说明：前端尚未创建（P5 阶段实现），此处预留服务定义，待 booknest_frontend/ 就绪后取消注释启用。
+  # web:
+  #   build:
+  #     context: ./booknest_frontend
+  #     dockerfile: Dockerfile
+  #   image: booknest-web:latest
+  #   container_name: booknest-web
+  #   restart: always
+  #   ports:
+  #     - "80:80"        # 映射公网 80 端口（HTTP 默认端口）
+  #   depends_on:
+  #     - app            # 确保后端先启动
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         memory: 300M # 前端运行期（Nginx）占内存极小，主要是构建期占内存
