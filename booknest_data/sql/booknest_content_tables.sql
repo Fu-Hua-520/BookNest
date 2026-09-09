@@ -28,7 +28,8 @@ CREATE TABLE `book` (
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
-    INDEX `idx_title` (`title`)
+    INDEX `idx_title` (`title`),
+    UNIQUE KEY `uk_isbn` (`isbn`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='书籍元数据表';
 
 -- ------------------------------------------------------
