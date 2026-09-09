@@ -1,6 +1,5 @@
 package com.fuhua.booknest.common.utils;
 
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**

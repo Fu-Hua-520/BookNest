@@ -6,7 +6,7 @@ import java.security.NoSuchAlgorithmException;
 
 /**
  * MD5加密工具类
- * 用于密码加密
+ * 注意：密码加密请使用 PasswordUtil（BCrypt），MD5 仅供非密码场景（如哈希去重）使用
  */
 public class MD5Util {
 

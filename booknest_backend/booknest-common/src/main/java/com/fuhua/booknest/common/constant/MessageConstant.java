@@ -11,7 +11,8 @@ public class MessageConstant {
     public static final String ACCOUNT_OR_PASSWORD_ERROR = "账号或密码错误";
     public static final String LOGIN_FAILED = "登录失败";
     public static final String DEFAULT_USERNAME_PREFIX="user_";
-    public static final String DEFAULT_AVATAR_URL="https://eaxon-bucket.oss-cn-wuhan-lr.aliyuncs.com/avatars/8_3bccc85c-79ae-4f81-821b-00aaa2d04719.jpeg";
+    // TODO: P2 接入 booknest 自有 OSS 后替换为默认头像 URL
+    public static final String DEFAULT_AVATAR_URL="";
 
     public static final Integer USER_DEFAULT=0;
     public static final Integer USER_VIP=1;

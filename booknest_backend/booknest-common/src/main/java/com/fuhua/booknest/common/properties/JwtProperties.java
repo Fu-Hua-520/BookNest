@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConfigurationProperties(prefix = "coder.jwt")
+@ConfigurationProperties(prefix = "booknest.jwt")
 @Data
 public class JwtProperties {
     //用户端

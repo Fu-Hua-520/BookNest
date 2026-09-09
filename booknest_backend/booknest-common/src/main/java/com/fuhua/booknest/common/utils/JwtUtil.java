@@ -65,6 +65,9 @@ public class JwtUtil {
      * 确保密钥至少32字节
      */
     private static String padKey(String key) {
+        if (key == null || key.isEmpty()) {
+            throw new IllegalArgumentException("JWT 密钥未配置");
+        }
         if (key.length() >= 32) {
             return key;
         }
