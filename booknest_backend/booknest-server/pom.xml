@@ -21,6 +21,12 @@
             <artifactId>booknest-common</artifactId>
         </dependency>
 
+        <!-- 显式依赖 pojo 模块 -->
+        <dependency>
+            <groupId>com.fuhua</groupId>
+            <artifactId>booknest-pojo</artifactId>
+        </dependency>
+
         <!-- Spring Boot Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
