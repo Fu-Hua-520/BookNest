@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.BooklistMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入新书单 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Booklist">
+        insert into booknest.`booklist`(id, user_id, title, summary, cover_image, visibility, like_count, collect_count, book_count)
+        values (#{id}, #{userId}, #{title}, #{summary}, #{coverImage}, #{visibility}, #{likeCount}, #{collectCount}, #{bookCount})
+    </insert>
+
+    <!-- 根据书单ID查询书单 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Booklist">
+        select * from booknest.`booklist` where id = #{id}
+    </select>
+
+    <!-- 根据创建者用户ID查询书单列表 -->
+    <select id="selectByUserId" resultType="com.fuhua.booknest.pojo.entity.Booklist">
+        select * from booknest.`booklist` where user_id = #{userId} order by create_time desc
+    </select>
+
+    <!-- 条件查询书单列表 -->
+    <select id="list" resultType="com.fuhua.booknest.pojo.entity.Booklist">
+        select * from booknest.`booklist`
+        <where>
+            <if test="visibility != null">
+                and visibility = #{visibility}
+            </if>
+            <if test="userId != null and userId != ''">
+                and user_id = #{userId}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <!-- 更新书单信息 -->
+    <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Booklist">
+        update booknest.`booklist`
+        set user_id = #{userId},
+            title = #{title},
+            summary = #{summary},
+            cover_image = #{coverImage},
+            visibility = #{visibility},
+            like_count = #{likeCount},
+            collect_count = #{collectCount},
+            book_count = #{bookCount}
+        where id = #{id}
+    </update>
+
+    <!-- 根据书单ID删除书单 -->
+    <delete id="deleteById">
+        delete from booknest.`booklist` where id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.TagMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入新标签 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Tag">
+        insert into booknest.`tag`(id, name, use_count, status)
+        values (#{id}, #{name}, #{useCount}, #{status})
+    </insert>
+
+    <!-- 根据标签ID查询标签 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Tag">
+        select * from booknest.`tag` where id = #{id}
+    </select>
+
+    <!-- 根据标签名称查询标签 -->
+    <select id="selectByName" resultType="com.fuhua.booknest.pojo.entity.Tag">
+        select * from booknest.`tag` where name = #{name}
+    </select>
+
+    <!-- 查询全部标签 -->
+    <select id="listAll" resultType="com.fuhua.booknest.pojo.entity.Tag">
+        select * from booknest.`tag` order by use_count desc
+    </select>
+
+    <!-- 更新标签信息 -->
+    <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Tag">
+        update booknest.`tag`
+        set name = #{name},
+            use_count = #{useCount},
+            status = #{status}
+        where id = #{id}
+    </update>
+
+    <!-- 根据标签ID删除标签 -->
+    <delete id="deleteById">
+        delete from booknest.`tag` where id = #{id}
+    </delete>
+
+</mapper>

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.PostMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入新帖子 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Post">
+        insert into booknest.`post`(id, user_id, book_id, title, summary, content_url, cover_image, category_id,
+                                    view_count, like_count, comment_count, collect_count, status, audit_status,
+                                    audit_reason, audit_time, is_top, publish_time)
+        values (#{id}, #{userId}, #{bookId}, #{title}, #{summary}, #{contentUrl}, #{coverImage}, #{categoryId},
+                #{viewCount}, #{likeCount}, #{commentCount}, #{collectCount}, #{status}, #{auditStatus},
+                #{auditReason}, #{auditTime}, #{isTop}, #{publishTime})
+    </insert>
+
+    <!-- 根据帖子ID查询帖子 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Post">
+        select * from booknest.`post` where id = #{id}
+    </select>
+
+    <!-- 根据作者用户ID查询帖子列表 -->
+    <select id="selectByUserId" resultType="com.fuhua.booknest.pojo.entity.Post">
+        select * from booknest.`post` where user_id = #{userId} order by publish_time desc
+    </select>
+
+    <!-- 条件查询帖子列表（供 PageHelper 分页） -->
+    <select id="list" resultType="com.fuhua.booknest.pojo.entity.Post">
+        select * from booknest.`post`
+        <where>
+            <if test="categoryId != null and categoryId != ''">
+                and category_id = #{categoryId}
+            </if>
+            <if test="auditStatus != null">
+                and audit_status = #{auditStatus}
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+        order by publish_time desc
+    </select>
+
+    <!-- 更新帖子信息 -->
+    <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Post">
+        update booknest.`post`
+        set user_id = #{userId},
+            book_id = #{bookId},
+            title = #{title},
+            summary = #{summary},
+            content_url = #{contentUrl},
+            cover_image = #{coverImage},
+            category_id = #{categoryId},
+            view_count = #{viewCount},
+            like_count = #{likeCount},
+            comment_count = #{commentCount},
+            collect_count = #{collectCount},
+            status = #{status},
+            audit_status = #{auditStatus},
+            audit_reason = #{auditReason},
+            audit_time = #{auditTime},
+            is_top = #{isTop},
+            publish_time = #{publishTime}
+        where id = #{id}
+    </update>
+
+    <!-- 根据帖子ID删除帖子 -->
+    <delete id="deleteById">
+        delete from booknest.`post` where id = #{id}
+    </delete>
+
+    <!-- 浏览量 +1 -->
+    <update id="incrementViewCount">
+        update booknest.`post` set view_count = view_count + 1 where id = #{id}
+    </update>
+
+    <!-- 点赞数 +1 -->
+    <update id="incrementLikeCount">
+        update booknest.`post` set like_count = like_count + 1 where id = #{id}
+    </update>
+
+    <!-- 评论数 +1 -->
+    <update id="incrementCommentCount">
+        update booknest.`post` set comment_count = comment_count + 1 where id = #{id}
+    </update>
+
+    <!-- 收藏数 +1 -->
+    <update id="incrementCollectCount">
+        update booknest.`post` set collect_count = collect_count + 1 where id = #{id}
+    </update>
+
+</mapper>

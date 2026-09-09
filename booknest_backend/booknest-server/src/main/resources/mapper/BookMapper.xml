@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.BookMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入新书籍 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Book">
+        insert into booknest.`book`(id, title, author, isbn, cover_url, description, publisher, publish_date, rating, rating_count, source)
+        values (#{id}, #{title}, #{author}, #{isbn}, #{coverUrl}, #{description}, #{publisher}, #{publishDate}, #{rating}, #{ratingCount}, #{source})
+    </insert>
+
+    <!-- 根据书籍ID查询书籍 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Book">
+        select * from booknest.`book` where id = #{id}
+    </select>
+
+    <!-- 根据ISBN查询书籍 -->
+    <select id="selectByIsbn" resultType="com.fuhua.booknest.pojo.entity.Book">
+        select * from booknest.`book` where isbn = #{isbn}
+    </select>
+
+    <!-- 根据书名模糊查询书籍 -->
+    <select id="selectByTitle" resultType="com.fuhua.booknest.pojo.entity.Book">
+        select * from booknest.`book` where title like concat('%', #{title}, '%')
+    </select>
+
+    <!-- 更新书籍信息 -->
+    <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Book">
+        update booknest.`book`
+        set title = #{title},
+            author = #{author},
+            isbn = #{isbn},
+            cover_url = #{coverUrl},
+            description = #{description},
+            publisher = #{publisher},
+            publish_date = #{publishDate},
+            rating = #{rating},
+            rating_count = #{ratingCount},
+            source = #{source}
+        where id = #{id}
+    </update>
+
+    <!-- 根据书籍ID删除书籍 -->
+    <delete id="deleteById">
+        delete from booknest.`book` where id = #{id}
+    </delete>
+
+</mapper>
