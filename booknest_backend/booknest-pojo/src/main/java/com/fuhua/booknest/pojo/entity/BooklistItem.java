@@ -13,6 +13,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BooklistItem implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private String id;
     private String booklistId;
     private String bookId;

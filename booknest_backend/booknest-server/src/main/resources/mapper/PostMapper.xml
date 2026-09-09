@@ -43,26 +43,23 @@
         order by publish_time desc
     </select>
 
-    <!-- 更新帖子信息 -->
+    <!-- 更新帖子信息（选择性更新，计数类字段由 incrementXxxCount 专门维护） -->
     <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Post">
         update booknest.`post`
-        set user_id = #{userId},
-            book_id = #{bookId},
-            title = #{title},
-            summary = #{summary},
-            content_url = #{contentUrl},
-            cover_image = #{coverImage},
-            category_id = #{categoryId},
-            view_count = #{viewCount},
-            like_count = #{likeCount},
-            comment_count = #{commentCount},
-            collect_count = #{collectCount},
-            status = #{status},
-            audit_status = #{auditStatus},
-            audit_reason = #{auditReason},
-            audit_time = #{auditTime},
-            is_top = #{isTop},
-            publish_time = #{publishTime}
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="summary != null">summary = #{summary},</if>
+            <if test="contentUrl != null">content_url = #{contentUrl},</if>
+            <if test="coverImage != null">cover_image = #{coverImage},</if>
+            <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="bookId != null">book_id = #{bookId},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="auditStatus != null">audit_status = #{auditStatus},</if>
+            <if test="auditReason != null">audit_reason = #{auditReason},</if>
+            <if test="auditTime != null">audit_time = #{auditTime},</if>
+            <if test="isTop != null">is_top = #{isTop},</if>
+            <if test="publishTime != null">publish_time = #{publishTime},</if>
+        </set>
         where id = #{id}
     </update>
 

@@ -19,7 +19,7 @@
 
     <!-- 查询全部分类 -->
     <select id="listAll" resultType="com.fuhua.booknest.pojo.entity.Category">
-        select * from booknest.`category` order by sort_order asc
+        select * from booknest.`category` order by parent_id, sort_order asc
     </select>
 
     <!-- 更新分类信息 -->

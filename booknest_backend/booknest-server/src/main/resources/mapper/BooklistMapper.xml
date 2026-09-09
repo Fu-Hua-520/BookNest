@@ -36,17 +36,15 @@
         order by create_time desc
     </select>
 
-    <!-- 更新书单信息 -->
+    <!-- 更新书单信息（选择性更新，排除 user_id 与计数/冗余字段） -->
     <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Booklist">
         update booknest.`booklist`
-        set user_id = #{userId},
-            title = #{title},
-            summary = #{summary},
-            cover_image = #{coverImage},
-            visibility = #{visibility},
-            like_count = #{likeCount},
-            collect_count = #{collectCount},
-            book_count = #{bookCount}
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="summary != null">summary = #{summary},</if>
+            <if test="coverImage != null">cover_image = #{coverImage},</if>
+            <if test="visibility != null">visibility = #{visibility},</if>
+        </set>
         where id = #{id}
     </update>
 

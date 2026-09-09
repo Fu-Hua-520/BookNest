@@ -96,9 +96,8 @@ CREATE TABLE `post` (
 
     -- 索引
     INDEX `idx_user_id` (`user_id`),
-    INDEX `idx_category_id` (`category_id`),
-    INDEX `idx_status` (`status`),
-    INDEX `idx_audit_status` (`audit_status`),
+    INDEX `idx_status_publish_time` (`status`, `publish_time`),
+    INDEX `idx_category_publish_time` (`category_id`, `publish_time`),
     INDEX `idx_publish_time` (`publish_time`),
     INDEX `idx_view_count` (`view_count`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='帖子/书评表';
