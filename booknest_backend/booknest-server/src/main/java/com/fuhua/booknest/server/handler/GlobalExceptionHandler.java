@@ -4,6 +4,8 @@ import com.fuhua.booknest.common.constant.MessageConstant;
 import com.fuhua.booknest.common.exception.BaseException;
 import com.fuhua.booknest.common.result.Result;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -25,6 +27,19 @@ public class GlobalExceptionHandler {
     public Result exceptionHandler(BaseException ex) {
         log.error("异常信息：{}", ex.getMessage());
         return Result.error(ex.getMessage());
+    }
+
+    /**
+     * 处理参数校验异常（@Valid 校验失败）
+     * @param ex
+     * @return
+     */
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public Result exceptionHandler(MethodArgumentNotValidException ex) {
+        String msg = ex.getBindingResult().getFieldErrors().stream()
+                .findFirst().map(FieldError::getDefaultMessage).orElse("参数不合法");
+        log.error("参数校验异常：{}", msg);
+        return Result.error(msg);
     }
 
     /**
