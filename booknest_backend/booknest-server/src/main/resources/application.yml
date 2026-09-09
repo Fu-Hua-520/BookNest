@@ -3,13 +3,11 @@
 spring:
   application:
     name: booknest-server
-  main:
-    allow-circular-references: true
   # 文件上传配置 - 支持大文件（书籍封面/帖子正文）
   servlet:
     multipart:
-      max-file-size: 500MB
-      max-request-size: 500MB
+      max-file-size: 20MB
+      max-request-size: 20MB
   # Jackson 日期格式配置
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
