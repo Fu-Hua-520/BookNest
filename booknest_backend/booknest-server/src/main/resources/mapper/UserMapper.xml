@@ -8,27 +8,27 @@
 
     <!-- 根据手机号查询用户 -->
     <select id="getUserByPhone" resultType="com.fuhua.booknest.pojo.entity.User">
-        select * from booknest.user where phone = #{userPhone}
+        select * from booknest.`user` where phone = #{userPhone}
     </select>
 
     <!-- 根据邮箱查询用户 -->
     <select id="getUserByEmail" resultType="com.fuhua.booknest.pojo.entity.User">
-        select * from booknest.user where email = #{userEmail}
+        select * from booknest.`user` where email = #{userEmail}
     </select>
 
     <!-- 根据账户编号查询用户 -->
     <select id="getUserByAccount" resultType="com.fuhua.booknest.pojo.entity.User">
-        select * from booknest.user where account = #{account}
+        select * from booknest.`user` where account = #{account}
     </select>
 
     <!-- 根据用户ID查询用户 -->
     <select id="getUserById" resultType="com.fuhua.booknest.pojo.entity.User">
-        select * from booknest.user where id = #{userId}
+        select * from booknest.`user` where id = #{userId}
     </select>
 
     <!-- 插入新用户 -->
     <insert id="insertUser" parameterType="com.fuhua.booknest.pojo.entity.User">
-        insert into booknest.user(id, account, username, password, phone, email, avatar, user_level, status, role)
+        insert into booknest.`user`(id, account, username, password, phone, email, avatar, user_level, status, role)
         values (#{id}, #{account}, #{username}, #{password}, #{phone}, #{email}, #{avatar}, #{userLevel}, #{status}, #{role})
     </insert>
 

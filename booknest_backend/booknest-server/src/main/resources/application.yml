@@ -86,11 +86,11 @@ logging:
 # BookNest JWT 配置（对应 JwtProperties，prefix=booknest.jwt）
 booknest:
   jwt:
-    # 用户端
-    user-secret-key: ${JWT_USER_SECRET:}
+    # 用户端（默认值仅供本地开发，生产环境务必通过环境变量覆盖）
+    user-secret-key: ${JWT_USER_SECRET:booknest-dev-user-secret-key-change-me-in-prod}
     user-ttl: ${JWT_USER_TTL:7200000}
     user-token-name: ${JWT_USER_TOKEN_NAME:authentication}
-    # 后台管理端
-    admin-secret-key: ${JWT_ADMIN_SECRET:}
+    # 后台管理端（默认值仅供本地开发，生产环境务必通过环境变量覆盖）
+    admin-secret-key: ${JWT_ADMIN_SECRET:booknest-dev-admin-secret-key-change-me-in-prod}
     admin-ttl: ${JWT_ADMIN_TTL:7200000}
     admin-token-name: ${JWT_ADMIN_TOKEN_NAME:admin-authentication}

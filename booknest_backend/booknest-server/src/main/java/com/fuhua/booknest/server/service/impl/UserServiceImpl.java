@@ -10,6 +10,9 @@ import org.springframework.stereotype.Service;
 import com.fuhua.booknest.common.constant.JwtClaimsConstant;
 import com.fuhua.booknest.common.constant.MessageConstant;
 import com.fuhua.booknest.common.constant.StatusConstant;
+import com.fuhua.booknest.common.exception.AccountLockedException;
+import com.fuhua.booknest.common.exception.AccountNotFoundException;
+import com.fuhua.booknest.common.exception.BaseException;
 import com.fuhua.booknest.common.exception.PasswordErrorException;
 import com.fuhua.booknest.common.exception.UserExistedException;
 import com.fuhua.booknest.common.properties.JwtProperties;
@@ -44,18 +47,32 @@ public class UserServiceImpl implements UserService {
      */
     @Override
     public void userRegister(UserRegisterDTO userRegisterDTO) {
-        // 1. 检查手机号是否已注册
+        // 0. 校验手机号与邮箱至少填一个，否则注册的账号无法登录
         String userPhone = userRegisterDTO.getPhone();
-        User userByPhone = getUserByPhone(userPhone);
-        if (userByPhone != null) {
-            throw new UserExistedException("手机号已被注册");
+        String userEmail = userRegisterDTO.getEmail();
+        boolean hasPhone = userPhone != null && !userPhone.trim().isEmpty();
+        boolean hasEmail = userEmail != null && !userEmail.trim().isEmpty();
+        if (!hasPhone && !hasEmail) {
+            throw new BaseException("手机号或邮箱至少填一个");
+        }
+        // 空串视为未填，统一置 null 存储，避免 UNIQUE 列出现空串冲突
+        String phone = hasPhone ? userPhone : null;
+        String email = hasEmail ? userEmail : null;
+
+        // 1. 检查手机号是否已注册
+        if (hasPhone) {
+            User userByPhone = getUserByPhone(userPhone);
+            if (userByPhone != null) {
+                throw new UserExistedException("手机号已被注册");
+            }
         }
 
         // 2. 检查邮箱是否已注册
-        String userEmail = userRegisterDTO.getEmail();
-        User userByEmail = getUserByEmail(userEmail);
-        if (userByEmail != null) {
-            throw new UserExistedException("邮箱已被注册");
+        if (hasEmail) {
+            User userByEmail = getUserByEmail(userEmail);
+            if (userByEmail != null) {
+                throw new UserExistedException("邮箱已被注册");
+            }
         }
 
         // 3. 生成账户编号（带重试机制，防止重复）
@@ -67,8 +84,8 @@ public class UserServiceImpl implements UserService {
                 .account(account)
                 .username(MessageConstant.DEFAULT_USERNAME_PREFIX+account)  // 用户名默认为空，用户后期自己设置
                 .password(PasswordUtil.encrypt(userRegisterDTO.getPassword()))
-                .phone(userPhone)
-                .email(userEmail)
+                .phone(phone)
+                .email(email)
                 .avatar(MessageConstant.DEFAULT_AVATAR_URL)
                 .userLevel(MessageConstant.USER_DEFAULT)
                 .status(StatusConstant.ENABLE)
@@ -110,26 +127,25 @@ public class UserServiceImpl implements UserService {
         String userEmail = userLoginDTO.getEmail();
         User user = userMapper.getUserByEmail(userEmail);
         if (user == null) {
-            throw new PasswordErrorException("邮箱出错,未找到用户");
-        }
-        if (!PasswordUtil.matches(userLoginDTO.getPassword(), user.getPassword())) {
-            throw new PasswordErrorException("密码错误，请重新输入");
+            // 统一返回"账号或密码错误"，防止通过错误信息枚举已注册邮箱
+            throw new AccountNotFoundException(MessageConstant.ACCOUNT_OR_PASSWORD_ERROR);
         }
 
-        // 根据用户角色选择不同的密钥和过期时间
+        // 账号被禁用时拒绝登录
+        if (StatusConstant.DISABLE.equals(user.getStatus())) {
+            throw new AccountLockedException(MessageConstant.ACCOUNT_LOCKED);
+        }
+
+        if (!PasswordUtil.matches(userLoginDTO.getPassword(), user.getPassword())) {
+            throw new PasswordErrorException(MessageConstant.ACCOUNT_OR_PASSWORD_ERROR);
+        }
+
+        // 统一使用 userSecretKey 签发 JWT（admin 独立密钥与 admin 拦截器留待 P5 管理后台实现）
         Map<String, Object> claims = new HashMap<>();
         claims.put(JwtClaimsConstant.USER_ID, user.getId());
 
-        String token;
-        if ("ADMIN".equals(user.getRole())) {
-            // 管理员使用 adminSecretKey
-            token = JwtUtil.createJWT(jwtProperties.getAdminSecretKey(), jwtProperties.getAdminTtl(), claims);
-            log.info("管理员登录，使用 adminSecretKey 生成token");
-        } else {
-            // 普通用户使用 userSecretKey
-            token = JwtUtil.createJWT(jwtProperties.getUserSecretKey(), jwtProperties.getUserTtl(), claims);
-            log.info("普通用户登录，使用 userSecretKey 生成token");
-        }
+        String token = JwtUtil.createJWT(jwtProperties.getUserSecretKey(), jwtProperties.getUserTtl(), claims);
+        log.info("用户登录成功，签发token（用户ID: {}）", user.getId());
 
         return UserLoginVO.builder()
                 .id(user.getId())

@@ -48,7 +48,7 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
 
         // 2、校验令牌
         try {
-            log.info("JWT校验开始，token: {}", token);
+            log.info("JWT校验开始，token是否存在: {}", token != null);
             Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);
             String userId = claims.get(JwtClaimsConstant.USER_ID).toString();
             log.info("当前用户ID: {}", userId);
@@ -64,5 +64,13 @@ public class JwtTokenUserInterceptor implements HandlerInterceptor {
             response.setStatus(401);
             return false;
         }
+    }
+
+    /**
+     * 请求结束后清理 ThreadLocal，防止内存泄漏
+     */
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
+        BaseContext.removeCurrentId();
     }
 }
