@@ -38,13 +38,13 @@ INSERT INTO `user` (`id`, `account`, `username`, `password`, `phone`, `email`, `
 ('550e8400-e29b-41d4-a716-446655440000', '10000001', 'admin', '$2a$10$9ZLZZckObAaBGMjiHHixvev0UqpjtcFhc5hXUL3/XVNyghl7cGzr2', '13800138000', 'admin@booknest.com', 2, 'ADMIN'),
 
 -- 普通用户（密码：123456）
-('550e8400-e29b-41d4-a716-446655440001', '10000002', 'tech_newbie', '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138001', 'user01@example.com', 0, 'USER'),
+('550e8400-e29b-41d4-a716-446655440001', '10000002', 'tech_newbie', '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138001', 'user01@booknest.com', 0, 'USER'),
 
 -- VIP用户（密码：123456，未设置username）
-('550e8400-e29b-41d4-a716-446655440002', '10000003', NULL, '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138002', 'user02@example.com', 1, 'USER'),
+('550e8400-e29b-41d4-a716-446655440002', '10000003', NULL, '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138002', 'user02@booknest.com', 1, 'USER'),
 
 -- SVIP用户（密码：123456）
-('550e8400-e29b-41d4-a716-446655440003', '10000004', 'architect', '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138003', 'user03@example.com', 2, 'USER'),
+('550e8400-e29b-41d4-a716-446655440003', '10000004', 'architect', '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138003', 'user03@booknest.com', 2, 'USER'),
 
 -- 测试用户（密码：123456，仅设置手机号注册）
 ('550e8400-e29b-41d4-a716-446655440004', '10000005', NULL, '$2a$10$bzuSUhKkMkypPe1a5d7KuOz/5JLaxy8dbcYGO1RVBTlq7Uax..0bC', '13800138004', NULL, 0, 'USER');
