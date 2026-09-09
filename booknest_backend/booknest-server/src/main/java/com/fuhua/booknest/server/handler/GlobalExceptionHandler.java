@@ -1,6 +1,5 @@
 package com.fuhua.booknest.server.handler;
 
-import com.fuhua.booknest.common.constant.MessageConstant;
 import com.fuhua.booknest.common.exception.BaseException;
 import com.fuhua.booknest.common.result.Result;
 import lombok.extern.slf4j.Slf4j;
@@ -10,8 +9,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.sql.SQLIntegrityConstraintViolationException;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 全局异常处理器，处理项目中抛出的业务异常
@@ -55,14 +52,8 @@ public class GlobalExceptionHandler {
         log.error("SQL异常：{}", message);
 
         if (message.contains("Duplicate entry")) {
-            // 用正则提取重复值，避免硬编码下标越界（非标准格式时安全降级）
-            Pattern pattern = Pattern.compile("Duplicate entry '(.*?)'");
-            Matcher matcher = pattern.matcher(message);
-            if (matcher.find()) {
-                String duplicateValue = matcher.group(1);
-                return Result.error(duplicateValue + MessageConstant.ACCOUNT_ALREADY_EXISTS);
-            }
-            return Result.error("数据已存在或重复");
+            // 唯一键冲突提示中性化，不区分具体业务字段
+            return Result.error("该值已存在或重复");
         } else {
             return Result.error("未知错误");
         }

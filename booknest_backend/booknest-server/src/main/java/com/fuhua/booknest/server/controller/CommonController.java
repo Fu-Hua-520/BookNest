@@ -29,7 +29,7 @@ public class CommonController {
 
     // 允许上传的扩展名白名单
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
-            "jpg", "jpeg", "png", "gif", "webp", "bmp", "svg",
+            "jpg", "jpeg", "png", "gif", "webp", "bmp",
             "md", "txt", "pdf", "doc", "docx");
 
     @Autowired
