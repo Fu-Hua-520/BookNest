@@ -1,0 +1,36 @@
+# ---- Maven ----
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+dependency-reduced-pom.xml
+
+# ---- IDE ----
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+*.classpath
+*.project
+
+# ---- 环境变量与密钥 ----
+.env
+.env.local
+.env.*.local
+application-local.yml
+application-prod.yml
+
+# ---- 日志 ----
+logs/
+*.log
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db

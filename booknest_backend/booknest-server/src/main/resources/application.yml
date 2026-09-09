@@ -1,0 +1,86 @@
+# BookNest 后端骨架配置
+# 所有敏感信息均通过环境变量注入（.env 风格），此处仅提供占位符与默认值
+spring:
+  application:
+    name: booknest-server
+  main:
+    allow-circular-references: true
+  # 文件上传配置 - 支持大文件（书籍封面/帖子正文）
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+  # Jackson 日期格式配置
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+    serialization:
+      write-dates-as-timestamps: false
+  # 数据源配置（Druid 连接池 + MySQL 驱动）
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:booknest}?serverTimezone=Asia/Shanghai&useUnicode=true&characterEncoding=utf-8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${DB_USERNAME:root}
+    password: ${DB_PASSWORD:}
+  # Redis 配置
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      database: ${REDIS_DATABASE:0}
+      password: ${REDIS_PASSWORD:}
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: 100ms
+  # RabbitMQ 配置
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    listener:
+      simple:
+        acknowledge-mode: auto  # 自动确认（消费成功后自动删除消息）
+        retry:
+          enabled: true
+          initial-interval: 3000  # 首次重试间隔 3 秒
+          max-attempts: 3         # 最多重试 3 次
+          multiplier: 2.0         # 重试间隔翻倍（3s → 6s → 12s）
+
+server:
+  port: ${SERVER_PORT:8080}
+  tomcat:
+    uri-encoding: UTF-8
+
+# MyBatis 配置
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.fuhua.booknest.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+
+# PageHelper 分页插件配置
+pagehelper:
+  helper-dialect: mysql
+  reasonable: true
+  support-methods-arguments: true
+  params: count=countSql
+
+# SpringDoc OpenAPI 配置
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+
+# 日志级别配置
+logging:
+  level:
+    com.fuhua.booknest: info
+    org.springframework: info
