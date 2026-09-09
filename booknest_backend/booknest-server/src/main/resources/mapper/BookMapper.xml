@@ -8,8 +8,8 @@
 
     <!-- 插入新书籍 -->
     <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Book">
-        insert into booknest.`book`(id, title, author, isbn, cover_url, description, publisher, publish_date, rating, rating_count, source)
-        values (#{id}, #{title}, #{author}, #{isbn}, #{coverUrl}, #{description}, #{publisher}, #{publishDate}, #{rating}, #{ratingCount}, #{source})
+        insert into booknest.`book`(id, title, author, isbn, cover_url, description, publisher, publish_date, rating, rating_count, source, create_time)
+        values (#{id}, #{title}, #{author}, #{isbn}, #{coverUrl}, #{description}, #{publisher}, #{publishDate}, #{rating}, #{ratingCount}, #{source}, #{createTime})
     </insert>
 
     <!-- 根据书籍ID查询书籍 -->
@@ -39,7 +39,8 @@
             publish_date = #{publishDate},
             rating = #{rating},
             rating_count = #{ratingCount},
-            source = #{source}
+            source = #{source},
+            update_time = #{updateTime}
         where id = #{id}
     </update>
 
