@@ -107,4 +107,18 @@
         update booknest.`post` set collect_count = collect_count - 1 where id = #{id}
     </update>
 
+    <!-- 关键词召回：按标题/摘要模糊匹配已过审帖子，按浏览量倒序（供 RAG 混合检索） -->
+    <select id="searchByKeyword" resultType="com.fuhua.booknest.pojo.entity.Post">
+        select * from booknest.`post`
+        where audit_status = 1
+          and (title like concat('%', #{keyword}, '%') or summary like concat('%', #{keyword}, '%'))
+        order by view_count desc
+        limit #{limit}
+    </select>
+
+    <!-- 查询全部已过审帖子（供批量向量化入库） -->
+    <select id="selectAllApproved" resultType="com.fuhua.booknest.pojo.entity.Post">
+        select * from booknest.`post` where audit_status = 1 order by publish_time desc
+    </select>
+
 </mapper>

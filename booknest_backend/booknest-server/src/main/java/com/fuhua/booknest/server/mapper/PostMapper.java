@@ -95,4 +95,18 @@ public interface PostMapper {
      * @param id 帖子ID
      */
     void decrementCollectCount(@Param("id") String id);
+
+    /**
+     * 关键词召回：按标题/摘要模糊匹配已过审帖子（供 RAG 混合检索）
+     * @param keyword 关键词
+     * @param limit 返回条数上限
+     * @return 帖子列表
+     */
+    List<Post> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
+
+    /**
+     * 查询全部已过审帖子（供批量向量化入库）
+     * @return 帖子列表
+     */
+    List<Post> selectAllApproved();
 }

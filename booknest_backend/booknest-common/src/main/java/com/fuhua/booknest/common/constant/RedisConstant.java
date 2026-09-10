@@ -147,6 +147,16 @@ public class RedisConstant {
      */
     public static final String ARTICLE_FULLTEXT = "article:fulltext:";
 
+    // ==================== RAG 帖子向量化 ====================
+
+    /**
+     * 已向量化入 zvector 的帖子 ID 集合（Set，避免重复入库）
+     * Key: post:embedding:set
+     * Value: Set<postId>
+     * 过期时间: 永久
+     */
+    public static final String POST_EMBEDDING_SET = "post:embedding:set";
+
     // ==================== 私信聊天 ====================
 
     /**
