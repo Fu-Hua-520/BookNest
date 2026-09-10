@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.AIConversationMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入 AI 会话 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.AIConversation">
+        insert into booknest.`ai_conversation`(id, user_id, title, model, message_count, last_message_preview, is_pinned, is_archived, status, create_time, update_time)
+        values (#{id}, #{userId}, #{title}, #{model}, #{messageCount}, #{lastMessagePreview}, #{isPinned}, #{isArchived}, #{status}, #{createTime}, #{updateTime})
+    </insert>
+
+    <!-- 根据会话ID查询会话 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.AIConversation">
+        select * from booknest.`ai_conversation` where id = #{id}
+    </select>
+
+    <!-- 查询用户的会话列表（正常状态，按更新时间倒序） -->
+    <select id="selectByUserId" resultType="com.fuhua.booknest.pojo.entity.AIConversation">
+        select * from booknest.`ai_conversation` where user_id = #{userId} and status = 1 order by update_time desc
+    </select>
+
+    <!-- 选择性更新会话信息 -->
+    <update id="update" parameterType="com.fuhua.booknest.pojo.entity.AIConversation">
+        update booknest.`ai_conversation`
+        <set>
+            <if test="title != null">title = #{title},</if>
+            <if test="model != null">model = #{model},</if>
+            <if test="messageCount != null">message_count = #{messageCount},</if>
+            <if test="lastMessagePreview != null">last_message_preview = #{lastMessagePreview},</if>
+            <if test="isPinned != null">is_pinned = #{isPinned},</if>
+            <if test="isArchived != null">is_archived = #{isArchived},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <!-- 软删除会话 -->
+    <update id="softDelete">
+        update booknest.`ai_conversation` set status = 0 where id = #{id}
+    </update>
+
+</mapper>
