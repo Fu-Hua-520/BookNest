@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.PostCommentLikeMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入评论点赞记录 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.PostCommentLike">
+        insert into booknest.`post_comment_like`(id, comment_id, user_id)
+        values (#{id}, #{commentId}, #{userId})
+    </insert>
+
+    <!-- 根据评论ID与用户ID删除点赞记录 -->
+    <delete id="deleteByCommentAndUser">
+        delete from booknest.`post_comment_like` where comment_id = #{commentId} and user_id = #{userId}
+    </delete>
+
+    <!-- 根据评论ID与用户ID查询点赞记录 -->
+    <select id="selectByCommentAndUser" resultType="com.fuhua.booknest.pojo.entity.PostCommentLike">
+        select * from booknest.`post_comment_like` where comment_id = #{commentId} and user_id = #{userId}
+    </select>
+
+</mapper>

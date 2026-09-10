@@ -77,4 +77,22 @@ public interface PostMapper {
      * @param id 帖子ID
      */
     void incrementCollectCount(@Param("id") String id);
+
+    /**
+     * 点赞数 -1
+     * @param id 帖子ID
+     */
+    void decrementLikeCount(@Param("id") String id);
+
+    /**
+     * 评论数 -1
+     * @param id 帖子ID
+     */
+    void decrementCommentCount(@Param("id") String id);
+
+    /**
+     * 收藏数 -1
+     * @param id 帖子ID
+     */
+    void decrementCollectCount(@Param("id") String id);
 }

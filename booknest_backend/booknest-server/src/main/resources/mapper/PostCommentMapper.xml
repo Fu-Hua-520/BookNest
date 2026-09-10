@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.PostCommentMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入评论 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.PostComment">
+        insert into booknest.`post_comment`(id, post_id, user_id, content, reply_id, like_count, create_time)
+        values (#{id}, #{postId}, #{userId}, #{content}, #{replyId}, #{likeCount}, #{createTime})
+    </insert>
+
+    <!-- 根据评论ID查询评论 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.PostComment">
+        select * from booknest.`post_comment` where id = #{id}
+    </select>
+
+    <!-- 根据评论ID删除评论 -->
+    <delete id="deleteById">
+        delete from booknest.`post_comment` where id = #{id}
+    </delete>
+
+    <!-- 根据帖子ID查询评论列表（按时间正序，前端组装楼层） -->
+    <select id="listByPostId" resultType="com.fuhua.booknest.pojo.entity.PostComment">
+        select * from booknest.`post_comment` where post_id = #{postId} order by create_time asc
+    </select>
+
+    <!-- 评论点赞数 +1 -->
+    <update id="incrementLikeCount">
+        update booknest.`post_comment` set like_count = like_count + 1 where id = #{id}
+    </update>
+
+    <!-- 评论点赞数 -1 -->
+    <update id="decrementLikeCount">
+        update booknest.`post_comment` set like_count = like_count - 1 where id = #{id}
+    </update>
+
+</mapper>
