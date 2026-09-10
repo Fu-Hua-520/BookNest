@@ -307,6 +307,14 @@ public class BookServiceImpl implements BookService {
         if (bookMapper.selectById(book.getId()) == null) {
             throw new BaseException("书籍不存在");
         }
+        // 修改 ISBN 时校验唯一性，避免依赖 SQL 唯一约束兜底
+        if (book.getIsbn() != null && !book.getIsbn().trim().isEmpty()) {
+            Book existing = bookMapper.selectByIsbn(book.getIsbn().trim());
+            if (existing != null && !existing.getId().equals(book.getId())) {
+                throw new BaseException("该 ISBN 已存在");
+            }
+            book.setIsbn(book.getIsbn().trim());
+        }
         book.setUpdateTime(LocalDateTime.now());
         bookMapper.update(book);
     }
