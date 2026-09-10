@@ -29,6 +29,19 @@ public interface PostCommentMapper {
     void deleteById(@Param("id") String id);
 
     /**
+     * 根据帖子ID删除该帖下所有评论（级联删除帖子时调用）
+     * @param postId 帖子ID
+     */
+    void deleteByPostId(@Param("postId") String postId);
+
+    /**
+     * 根据被回复评论ID查询所有回复该评论的评论列表（楼中楼后代收集）
+     * @param replyId 被回复评论ID
+     * @return 回复评论列表
+     */
+    List<PostComment> listByReplyId(@Param("replyId") String replyId);
+
+    /**
      * 根据帖子ID查询评论列表（顶级评论与回复统一按时间正序，前端组装楼层）
      * @param postId 帖子ID
      * @return 评论列表

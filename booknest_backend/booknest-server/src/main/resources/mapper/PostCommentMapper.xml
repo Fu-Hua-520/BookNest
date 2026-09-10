@@ -22,6 +22,16 @@
         delete from booknest.`post_comment` where id = #{id}
     </delete>
 
+    <!-- 根据帖子ID删除该帖下所有评论（级联删除帖子时调用） -->
+    <delete id="deleteByPostId">
+        delete from booknest.`post_comment` where post_id = #{postId}
+    </delete>
+
+    <!-- 根据被回复评论ID查询所有回复该评论的评论列表（楼中楼后代收集） -->
+    <select id="listByReplyId" resultType="com.fuhua.booknest.pojo.entity.PostComment">
+        select * from booknest.`post_comment` where reply_id = #{replyId}
+    </select>
+
     <!-- 根据帖子ID查询评论列表（按时间正序，前端组装楼层） -->
     <select id="listByPostId" resultType="com.fuhua.booknest.pojo.entity.PostComment">
         select * from booknest.`post_comment` where post_id = #{postId} order by create_time asc

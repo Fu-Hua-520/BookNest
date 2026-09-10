@@ -92,6 +92,13 @@ public interface PostMapper {
     void decrementCommentCount(@Param("id") String id);
 
     /**
+     * 评论数 -count（级联删除评论时按实际删除条数扣减）
+     * @param id 帖子ID
+     * @param count 扣减数量
+     */
+    void decrementCommentCountBy(@Param("id") String id, @Param("count") int count);
+
+    /**
      * 收藏数 -1
      * @param id 帖子ID
      */

@@ -15,6 +15,10 @@ import com.fuhua.booknest.pojo.vo.PostDetailVO;
 import com.fuhua.booknest.pojo.vo.PostVO;
 import com.fuhua.booknest.server.mapper.BookMapper;
 import com.fuhua.booknest.server.mapper.CategoryMapper;
+import com.fuhua.booknest.server.mapper.PostCollectMapper;
+import com.fuhua.booknest.server.mapper.PostCommentLikeMapper;
+import com.fuhua.booknest.server.mapper.PostCommentMapper;
+import com.fuhua.booknest.server.mapper.PostLikeMapper;
 import com.fuhua.booknest.server.mapper.PostMapper;
 import com.fuhua.booknest.server.mapper.PostTagMapper;
 import com.fuhua.booknest.server.mapper.TagMapper;
@@ -25,6 +29,7 @@ import com.github.pagehelper.PageHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -43,6 +48,14 @@ public class PostServiceImpl implements PostService {
     @Autowired
     private PostMapper postMapper;
     @Autowired
+    private PostCommentMapper postCommentMapper;
+    @Autowired
+    private PostCommentLikeMapper postCommentLikeMapper;
+    @Autowired
+    private PostLikeMapper postLikeMapper;
+    @Autowired
+    private PostCollectMapper postCollectMapper;
+    @Autowired
     private PostTagMapper postTagMapper;
     @Autowired
     private TagMapper tagMapper;
@@ -56,6 +69,7 @@ public class PostServiceImpl implements PostService {
     private AliOssUtil aliOssUtil;
 
     @Override
+    @Transactional
     public PostVO publishPost(PostPublishDTO dto) {
         // 校验必填字段（@Valid 之外再兜底）
         if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
@@ -107,11 +121,14 @@ public class PostServiceImpl implements PostService {
             throw new BaseException("帖子不存在");
         }
 
-        // 访问控制：未过审且非作者本人不可见
+        // 访问控制：非作者本人需同时满足已过审且已发布，否则不可见
         String currentId = BaseContext.getCurrentId();
-        if (!PostStatusConstant.AUDIT_APPROVED.equals(post.getAuditStatus())
-                && (currentId == null || !currentId.equals(post.getUserId()))) {
-            throw new BaseException("帖子不存在或审核未通过");
+        boolean isAuthor = currentId != null && currentId.equals(post.getUserId());
+        if (!isAuthor) {
+            if (!PostStatusConstant.AUDIT_APPROVED.equals(post.getAuditStatus())
+                    || !PostStatusConstant.STATUS_PUBLISHED.equals(post.getStatus())) {
+                throw new BaseException("帖子不存在或审核未通过");
+            }
         }
 
         // 浏览量 +1，并同步内存值使返回结果准确
@@ -158,10 +175,9 @@ public class PostServiceImpl implements PostService {
 
     @Override
     public List<PostVO> listPosts(String categoryId, String tagId, Integer auditStatus, Integer page, Integer pageSize) {
-        // 未显式传审核状态时，默认只返回已过审帖子
-        if (auditStatus == null) {
-            auditStatus = PostStatusConstant.AUDIT_APPROVED;
-        }
+        // 用户端强制只返回已过审帖子，防止客户端传入 0/2 枚举未过审/被拒帖子；
+        // 管理端审核走 admin 的 PostAdminService 直调 mapper，不受此影响
+        auditStatus = PostStatusConstant.AUDIT_APPROVED;
         if (page == null || page <= 0) {
             page = 1;
         }
@@ -181,6 +197,7 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    @Transactional
     public void updatePost(String postId, PostUpdateDTO dto) {
         Post post = postMapper.selectById(postId);
         if (post == null) {
@@ -191,9 +208,25 @@ public class PostServiceImpl implements PostService {
             throw new BaseException("无权限操作");
         }
 
-        // 正文重新上传 OSS，上传成功后清理旧正文（清理失败不阻断）
+        // 正文重新上传 OSS，得到新 objectName
         String oldObjectName = post.getContentUrl();
         String newObjectName = uploadContent(dto.getContent());
+
+        // 更新字段：编辑后回退审核状态为待审核，清空审核原因与审核时间，重新进入审核流程
+        post.setTitle(dto.getTitle());
+        post.setSummary(dto.getSummary());
+        post.setContentUrl(newObjectName);
+        post.setBookId(dto.getBookId());
+        post.setCategoryId(dto.getCategoryId());
+        post.setCoverImage(dto.getCoverImage());
+        post.setAuditStatus(PostStatusConstant.AUDIT_PENDING);
+        post.setAuditReason("");
+        post.setAuditTime(null);
+        post.setUpdateTime(LocalDateTime.now());
+        // 先写库，成功后再清理旧正文，避免 DB 写失败导致正文丢失
+        postMapper.update(post);
+
+        // 清理旧正文（失败仅告警，不阻断编辑）
         if (oldObjectName != null && !oldObjectName.isEmpty() && !oldObjectName.equals(newObjectName)) {
             try {
                 aliOssUtil.delete(oldObjectName);
@@ -202,22 +235,13 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        // 更新字段
-        post.setTitle(dto.getTitle());
-        post.setSummary(dto.getSummary());
-        post.setContentUrl(newObjectName);
-        post.setBookId(dto.getBookId());
-        post.setCategoryId(dto.getCategoryId());
-        post.setCoverImage(dto.getCoverImage());
-        post.setUpdateTime(LocalDateTime.now());
-        postMapper.update(post);
-
         // 重建标签关联（简化处理，不做使用次数递减）
         postTagMapper.deleteByPostId(postId);
         rebuildPostTags(postId, dto.getTagIds());
     }
 
     @Override
+    @Transactional
     public void deletePost(String postId) {
         Post post = postMapper.selectById(postId);
         if (post == null) {
@@ -237,7 +261,11 @@ public class PostServiceImpl implements PostService {
             }
         }
 
-        // 删除标签关联与帖子
+        // 级联删除互动数据：评论点赞 → 评论 → 帖子点赞 → 收藏 → 标签关联 → 帖子
+        postCommentLikeMapper.deleteByPostId(postId);
+        postCommentMapper.deleteByPostId(postId);
+        postLikeMapper.deleteByPostId(postId);
+        postCollectMapper.deleteByPostId(postId);
         postTagMapper.deleteByPostId(postId);
         postMapper.deleteById(postId);
     }

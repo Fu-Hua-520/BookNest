@@ -17,6 +17,16 @@
         delete from booknest.`post_comment_like` where comment_id = #{commentId} and user_id = #{userId}
     </delete>
 
+    <!-- 根据帖子ID删除该帖下所有评论的点赞记录（级联删除帖子时调用） -->
+    <delete id="deleteByPostId">
+        delete from booknest.`post_comment_like` where comment_id in (select id from booknest.`post_comment` where post_id = #{postId})
+    </delete>
+
+    <!-- 根据评论ID删除该评论的所有点赞记录（级联删除评论时调用） -->
+    <delete id="deleteByCommentId">
+        delete from booknest.`post_comment_like` where comment_id = #{commentId}
+    </delete>
+
     <!-- 根据评论ID与用户ID查询点赞记录 -->
     <select id="selectByCommentAndUser" resultType="com.fuhua.booknest.pojo.entity.PostCommentLike">
         select * from booknest.`post_comment_like` where comment_id = #{commentId} and user_id = #{userId}

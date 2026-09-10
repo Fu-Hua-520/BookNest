@@ -21,6 +21,12 @@ public interface PostLikeMapper {
     void deleteByPostAndUser(@Param("postId") String postId, @Param("userId") String userId);
 
     /**
+     * 根据帖子ID删除该帖下所有点赞记录（级联删除帖子时调用）
+     * @param postId 帖子ID
+     */
+    void deleteByPostId(@Param("postId") String postId);
+
+    /**
      * 根据帖子ID与用户ID查询点赞记录
      * @param postId 帖子ID
      * @param userId 用户ID

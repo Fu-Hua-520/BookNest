@@ -102,6 +102,11 @@
         update booknest.`post` set comment_count = comment_count - 1 where id = #{id}
     </update>
 
+    <!-- 评论数 -count（级联删除评论时按实际删除条数扣减） -->
+    <update id="decrementCommentCountBy">
+        update booknest.`post` set comment_count = comment_count - #{count} where id = #{id}
+    </update>
+
     <!-- 收藏数 -1 -->
     <update id="decrementCollectCount">
         update booknest.`post` set collect_count = collect_count - 1 where id = #{id}

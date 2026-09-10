@@ -22,12 +22,15 @@ import com.fuhua.booknest.server.service.PostInteractionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -50,6 +53,7 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     private NotificationProducer notificationProducer;
 
     @Override
+    @Transactional
     public CommentVO publishComment(String postId, CommentPublishDTO dto) {
         // 校验评论内容非空
         if (dto.getContent() == null || dto.getContent().trim().isEmpty()) {
@@ -111,6 +115,7 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     }
 
     @Override
+    @Transactional
     public void deleteComment(String commentId) {
         PostComment comment = postCommentMapper.selectById(commentId);
         if (comment == null) {
@@ -129,11 +134,58 @@ public class PostInteractionServiceImpl implements PostInteractionService {
             throw new BaseException("无权限操作");
         }
 
+        // 递归收集所有楼中楼后代评论 ID
+        List<String> replyIds = collectReplyIds(commentId);
+
+        // 先删每个子回复的点赞，再删子回复
+        for (String replyId : replyIds) {
+            postCommentLikeMapper.deleteByCommentId(replyId);
+            postCommentMapper.deleteById(replyId);
+        }
+
+        // 再删本评论的点赞与本评论
+        postCommentLikeMapper.deleteByCommentId(commentId);
         postCommentMapper.deleteById(commentId);
-        postMapper.decrementCommentCount(comment.getPostId());
+
+        // 评论数按「本评论 + 所有后代回复」实际删除条数扣减
+        postMapper.decrementCommentCountBy(comment.getPostId(), 1 + replyIds.size());
+    }
+
+    /**
+     * 递归收集某个评论的全部后代评论 ID（楼中楼的子回复及其更深层回复）
+     * @param commentId 评论ID
+     * @return 所有后代评论 ID 列表
+     */
+    private List<String> collectReplyIds(String commentId) {
+        List<String> result = new ArrayList<>();
+        Set<String> visited = new HashSet<>();
+        collectReplyIdsRecursive(commentId, result, visited);
+        return result;
+    }
+
+    /**
+     * 递归遍历子回复（visited 防循环引用）
+     * @param commentId 当前评论ID
+     * @param result 结果集合
+     * @param visited 已访问集合
+     */
+    private void collectReplyIdsRecursive(String commentId, List<String> result, Set<String> visited) {
+        List<PostComment> children = postCommentMapper.listByReplyId(commentId);
+        if (children == null || children.isEmpty()) {
+            return;
+        }
+        for (PostComment child : children) {
+            if (child.getId() == null || visited.contains(child.getId())) {
+                continue;
+            }
+            visited.add(child.getId());
+            result.add(child.getId());
+            collectReplyIdsRecursive(child.getId(), result, visited);
+        }
     }
 
     @Override
+    @Transactional
     public Map<String, Object> toggleCommentLike(String commentId) {
         // 校验评论存在
         PostComment comment = postCommentMapper.selectById(commentId);
@@ -172,6 +224,7 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> togglePostLike(String postId) {
         // 校验帖子存在
         Post post = postMapper.selectById(postId);
@@ -220,6 +273,7 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> togglePostCollect(String postId) {
         // 校验帖子存在
         if (postMapper.selectById(postId) == null) {

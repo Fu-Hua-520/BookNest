@@ -22,6 +22,7 @@ import com.github.pagehelper.PageHelper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -42,10 +43,17 @@ public class BooklistServiceImpl implements BooklistService {
     private UserMapper userMapper;
 
     @Override
+    @Transactional
     public BooklistVO createBooklist(BooklistCreateDTO dto) {
         // 校验必填字段（@Valid 之外再兜底）
         if (dto.getTitle() == null || dto.getTitle().trim().isEmpty()) {
             throw new BaseException("标题不能为空");
+        }
+
+        // 可见性白名单校验：仅允许 0（公开）或 1（私密）
+        Integer visibility = dto.getVisibility() == null ? 0 : dto.getVisibility();
+        if (visibility != 0 && visibility != 1) {
+            throw new BaseException("可见性参数非法");
         }
 
         String booklistId = UUID.randomUUID().toString();
@@ -71,8 +79,7 @@ public class BooklistServiceImpl implements BooklistService {
             }
         }
 
-        // 组装书单：visibility 缺省 0，计数字段初始化，bookCount 由初始条目数决定
-        Integer visibility = dto.getVisibility() == null ? 0 : dto.getVisibility();
+        // 组装书单：visibility 已在上方校验，计数字段初始化，bookCount 由初始条目数决定
         Booklist booklist = Booklist.builder()
                 .id(booklistId)
                 .userId(BaseContext.getCurrentId())
@@ -192,6 +199,7 @@ public class BooklistServiceImpl implements BooklistService {
     }
 
     @Override
+    @Transactional
     public void updateBooklist(String id, BooklistUpdateDTO dto) {
         Booklist booklist = booklistMapper.selectById(id);
         if (booklist == null) {
@@ -200,15 +208,22 @@ public class BooklistServiceImpl implements BooklistService {
         // 仅作者本人可操作
         checkOwner(booklist);
 
+        // 可见性白名单校验：仅允许 0（公开）或 1（私密）
+        Integer visibility = dto.getVisibility() == null ? 0 : dto.getVisibility();
+        if (visibility != 0 && visibility != 1) {
+            throw new BaseException("可见性参数非法");
+        }
+
         booklist.setTitle(dto.getTitle());
         booklist.setSummary(dto.getSummary());
         booklist.setCoverImage(dto.getCoverImage());
-        booklist.setVisibility(dto.getVisibility());
+        booklist.setVisibility(visibility);
         booklist.setUpdateTime(LocalDateTime.now());
         booklistMapper.update(booklist);
     }
 
     @Override
+    @Transactional
     public void deleteBooklist(String id) {
         Booklist booklist = booklistMapper.selectById(id);
         if (booklist == null) {
@@ -223,6 +238,7 @@ public class BooklistServiceImpl implements BooklistService {
     }
 
     @Override
+    @Transactional
     public BooklistItemVO addItem(String booklistId, BooklistAddItemDTO dto) {
         Booklist booklist = booklistMapper.selectById(booklistId);
         if (booklist == null) {
@@ -267,6 +283,7 @@ public class BooklistServiceImpl implements BooklistService {
     }
 
     @Override
+    @Transactional
     public void removeItem(String booklistId, String itemId) {
         Booklist booklist = booklistMapper.selectById(booklistId);
         if (booklist == null) {

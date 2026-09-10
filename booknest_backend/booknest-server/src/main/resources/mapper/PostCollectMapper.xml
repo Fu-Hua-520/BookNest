@@ -17,6 +17,11 @@
         delete from booknest.`post_collect` where post_id = #{postId} and user_id = #{userId}
     </delete>
 
+    <!-- 根据帖子ID删除该帖下所有收藏记录（级联删除帖子时调用） -->
+    <delete id="deleteByPostId">
+        delete from booknest.`post_collect` where post_id = #{postId}
+    </delete>
+
     <!-- 根据帖子ID与用户ID查询收藏记录 -->
     <select id="selectByPostAndUser" resultType="com.fuhua.booknest.pojo.entity.PostCollect">
         select * from booknest.`post_collect` where post_id = #{postId} and user_id = #{userId}

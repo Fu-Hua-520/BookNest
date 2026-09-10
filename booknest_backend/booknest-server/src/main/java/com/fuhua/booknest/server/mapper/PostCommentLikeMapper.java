@@ -21,6 +21,18 @@ public interface PostCommentLikeMapper {
     void deleteByCommentAndUser(@Param("commentId") String commentId, @Param("userId") String userId);
 
     /**
+     * 根据帖子ID删除该帖下所有评论的点赞记录（级联删除帖子时调用）
+     * @param postId 帖子ID
+     */
+    void deleteByPostId(@Param("postId") String postId);
+
+    /**
+     * 根据评论ID删除该评论的所有点赞记录（级联删除评论时调用）
+     * @param commentId 评论ID
+     */
+    void deleteByCommentId(@Param("commentId") String commentId);
+
+    /**
      * 根据评论ID与用户ID查询点赞记录
      * @param commentId 评论ID
      * @param userId 用户ID
