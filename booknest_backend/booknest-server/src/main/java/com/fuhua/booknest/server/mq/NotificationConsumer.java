@@ -37,8 +37,8 @@ public class NotificationConsumer {
                     .build();
             notificationMapper.insert(notification);
         } catch (Exception e) {
-            // 异常仅记录日志，不抛出，避免消息循环重投
-            log.error("通知消息落库失败，receiverId: {}, type: {}", message.getReceiverId(), message.getType(), e);
+            log.error("通知消息落库失败，将进入重试/死信队列，receiverId: {}, type: {}", message.getReceiverId(), message.getType(), e);
+            throw new RuntimeException("通知落库失败", e);
         }
     }
 }

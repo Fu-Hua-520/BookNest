@@ -1,5 +1,8 @@
 package com.fuhua.booknest.server.config;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.Queue;
@@ -24,6 +27,13 @@ public class RabbitMQConfig {
     // 通知路由键
     public static final String ROUTING_KEY = "booknest.notification";
 
+    // 死信交换机名称
+    public static final String DEAD_LETTER_EXCHANGE = "booknest.notification.dlx";
+    // 死信队列名称
+    public static final String DEAD_LETTER_QUEUE = "booknest.notification.dlx.queue";
+    // 死信路由键
+    public static final String DEAD_LETTER_ROUTING_KEY = "booknest.notification.dlx";
+
     /**
      * 声明主题交换机
      */
@@ -33,11 +43,14 @@ public class RabbitMQConfig {
     }
 
     /**
-     * 声明通知队列
+     * 声明通知队列（绑定死信交换机，消费失败时消息进入死信队列）
      */
     @Bean
     public Queue notificationQueue() {
-        return new Queue(QUEUE, true);
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange", DEAD_LETTER_EXCHANGE);
+        args.put("x-dead-letter-routing-key", DEAD_LETTER_ROUTING_KEY);
+        return new Queue(QUEUE, true, false, false, args);
     }
 
     /**
@@ -49,11 +62,36 @@ public class RabbitMQConfig {
     }
 
     /**
+     * 声明死信交换机
+     */
+    @Bean
+    public TopicExchange notificationDlx() {
+        return new TopicExchange(DEAD_LETTER_EXCHANGE, true, false);
+    }
+
+    /**
+     * 声明死信队列
+     */
+    @Bean
+    public Queue notificationDlq() {
+        return new Queue(DEAD_LETTER_QUEUE, true);
+    }
+
+    /**
+     * 绑定死信队列与死信交换机
+     */
+    @Bean
+    public Binding notificationDlqBinding(Queue notificationDlq, TopicExchange notificationDlx) {
+        return BindingBuilder.bind(notificationDlq).to(notificationDlx).with(DEAD_LETTER_ROUTING_KEY);
+    }
+
+    /**
      * 消息转换器：JSON 序列化（RabbitTemplate 发送时自动装配该唯一 Bean）
      */
     @Bean
     public MessageConverter messageConverter() {
-        return new Jackson2JsonMessageConverter();
+        // 使用构造参数设置 trustedPackages，避免反序列化 com.fuhua.booknest.server.mq 包下的消息时抛异常
+        return new Jackson2JsonMessageConverter("com.fuhua.booknest.server.mq");
     }
 
     /**
