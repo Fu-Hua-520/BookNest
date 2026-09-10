@@ -1,5 +1,6 @@
 package com.fuhua.booknest.server.service.impl;
 
+import com.fuhua.booknest.common.constant.NotificationConstant;
 import com.fuhua.booknest.common.context.BaseContext;
 import com.fuhua.booknest.common.exception.BaseException;
 import com.fuhua.booknest.pojo.dto.CommentPublishDTO;
@@ -16,6 +17,7 @@ import com.fuhua.booknest.server.mapper.PostCommentMapper;
 import com.fuhua.booknest.server.mapper.PostLikeMapper;
 import com.fuhua.booknest.server.mapper.PostMapper;
 import com.fuhua.booknest.server.mapper.UserMapper;
+import com.fuhua.booknest.server.mq.NotificationProducer;
 import com.fuhua.booknest.server.service.PostInteractionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +46,8 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     private PostCollectMapper postCollectMapper;
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private NotificationProducer notificationProducer;
 
     @Override
     public CommentVO publishComment(String postId, CommentPublishDTO dto) {
@@ -52,7 +56,8 @@ public class PostInteractionServiceImpl implements PostInteractionService {
             throw new BaseException("评论内容不能为空");
         }
         // 校验帖子存在
-        if (postMapper.selectById(postId) == null) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
             throw new BaseException("帖子不存在");
         }
 
@@ -79,6 +84,9 @@ public class PostInteractionServiceImpl implements PostInteractionService {
 
         // 帖子评论数 +1
         postMapper.incrementCommentCount(postId);
+
+        // 评论通知（自己评论自己的帖子不发通知）
+        sendPostInteractionNotification(post, NotificationConstant.TYPE_COMMENT, "评论了你的帖子");
 
         return buildCommentVO(comment, null);
     }
@@ -166,7 +174,8 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     @Override
     public Map<String, Object> togglePostLike(String postId) {
         // 校验帖子存在
-        if (postMapper.selectById(postId) == null) {
+        Post post = postMapper.selectById(postId);
+        if (post == null) {
             throw new BaseException("帖子不存在");
         }
 
@@ -188,6 +197,11 @@ public class PostInteractionServiceImpl implements PostInteractionService {
                     .build());
             postMapper.incrementLikeCount(postId);
             liked = true;
+        }
+
+        // 本次为点赞（非取消）时发送点赞通知
+        if (liked) {
+            sendPostInteractionNotification(post, NotificationConstant.TYPE_LIKE, "赞了你的帖子");
         }
 
         // 重新查询帖子最新点赞数
@@ -245,6 +259,23 @@ public class PostInteractionServiceImpl implements PostInteractionService {
     @Override
     public boolean isPostCollected(String postId) {
         return postCollectMapper.selectByPostAndUser(postId, BaseContext.getCurrentId()) != null;
+    }
+
+    /**
+     * 发送帖子互动通知（点赞/评论），自己对自己操作不发送
+     * @param post 帖子实体
+     * @param type 通知类型
+     * @param verb 动作文案（如 "评论了你的帖子"）
+     */
+    private void sendPostInteractionNotification(Post post, String type, String verb) {
+        String currentId = BaseContext.getCurrentId();
+        if (currentId == null || currentId.equals(post.getUserId())) {
+            return;
+        }
+        User currentUser = userMapper.getUserById(currentId);
+        String userName = (currentUser == null || currentUser.getUsername() == null) ? "用户" : currentUser.getUsername();
+        String content = userName + " " + verb + "《" + post.getTitle() + "》";
+        notificationProducer.sendNotification(post.getUserId(), type, content, post.getId());
     }
 
     /**

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.UserFollowMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入关注记录 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.UserFollow">
+        insert into booknest.`user_follow`(id, follower_id, followee_id, create_time)
+        values (#{id}, #{followerId}, #{followeeId}, #{createTime})
+    </insert>
+
+    <!-- 取消关注（根据关注者与被关注者删除记录） -->
+    <delete id="deleteByFollowerAndFollowee">
+        delete from booknest.`user_follow` where follower_id = #{followerId} and followee_id = #{followeeId}
+    </delete>
+
+    <!-- 查询是否已关注 -->
+    <select id="selectByFollowerAndFollowee" resultType="com.fuhua.booknest.pojo.entity.UserFollow">
+        select * from booknest.`user_follow` where follower_id = #{followerId} and followee_id = #{followeeId}
+    </select>
+
+    <!-- 查询关注列表（被关注用户ID，按关注时间倒序） -->
+    <select id="listFolloweeIds" resultType="string">
+        select followee_id from booknest.`user_follow` where follower_id = #{followerId} order by create_time desc
+    </select>
+
+    <!-- 查询粉丝列表（关注者用户ID，按关注时间倒序） -->
+    <select id="listFollowerIds" resultType="string">
+        select follower_id from booknest.`user_follow` where followee_id = #{followeeId} order by create_time desc
+    </select>
+
+</mapper>

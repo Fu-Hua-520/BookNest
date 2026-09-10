@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.NotificationMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 插入通知（id 由数据库自增生成） -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Notification">
+        insert into booknest.`notification`(receiver_id, type, content, source_id, is_read, create_time)
+        values (#{receiverId}, #{type}, #{content}, #{sourceId}, #{isRead}, #{createTime})
+    </insert>
+
+    <!-- 根据通知ID查询通知 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Notification">
+        select * from booknest.`notification` where id = #{id}
+    </select>
+
+    <!-- 根据接收者查询通知列表（按创建时间倒序） -->
+    <select id="listByReceiverId" resultType="com.fuhua.booknest.pojo.entity.Notification">
+        select * from booknest.`notification` where receiver_id = #{receiverId} order by create_time desc
+    </select>
+
+    <!-- 统计未读通知数 -->
+    <select id="countUnread" resultType="long">
+        select count(*) from booknest.`notification` where receiver_id = #{receiverId} and is_read = 0
+    </select>
+
+    <!-- 标记单条通知已读 -->
+    <update id="markRead">
+        update booknest.`notification` set is_read = 1, read_time = NOW() where id = #{id}
+    </update>
+
+    <!-- 标记全部通知已读 -->
+    <update id="markAllRead">
+        update booknest.`notification` set is_read = 1, read_time = NOW() where receiver_id = #{receiverId} and is_read = 0
+    </update>
+
+    <!-- 根据通知ID删除通知 -->
+    <delete id="deleteById">
+        delete from booknest.`notification` where id = #{id}
+    </delete>
+
+</mapper>
