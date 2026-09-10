@@ -121,4 +121,19 @@
         select * from booknest.`post` where audit_status = 1 order by publish_time desc
     </select>
 
+    <!-- 帖子审核（设置审核状态、审核原因、审核时间） -->
+    <update id="audit">
+        update booknest.`post` set audit_status = #{auditStatus}, audit_reason = #{auditReason}, audit_time = #{auditTime} where id = #{id}
+    </update>
+
+    <!-- 更新帖子状态 -->
+    <update id="updateStatus">
+        update booknest.`post` set status = #{status} where id = #{id}
+    </update>
+
+    <!-- 更新帖子置顶状态 -->
+    <update id="updateIsTop">
+        update booknest.`post` set is_top = #{isTop} where id = #{id}
+    </update>
+
 </mapper>

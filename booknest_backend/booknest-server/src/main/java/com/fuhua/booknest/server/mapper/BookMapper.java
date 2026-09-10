@@ -47,4 +47,11 @@ public interface BookMapper {
      * @param id 书籍ID
      */
     void deleteById(@Param("id") String id);
+
+    /**
+     * 管理后台：关键字条件查询书籍列表（供 PageHelper 分页）
+     * @param keyword 书名关键字（可空）
+     * @return 书籍列表
+     */
+    List<Book> list(@Param("keyword") String keyword);
 }

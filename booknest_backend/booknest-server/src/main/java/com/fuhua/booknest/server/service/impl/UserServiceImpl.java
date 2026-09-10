@@ -143,6 +143,7 @@ public class UserServiceImpl implements UserService {
         // 统一使用 userSecretKey 签发 JWT（admin 独立密钥与 admin 拦截器留待 P5 管理后台实现）
         Map<String, Object> claims = new HashMap<>();
         claims.put(JwtClaimsConstant.USER_ID, user.getId());
+        claims.put(JwtClaimsConstant.ROLE, user.getRole());
 
         String token = JwtUtil.createJWT(jwtProperties.getUserSecretKey(), jwtProperties.getUserTtl(), claims);
         log.info("用户登录成功，签发token（用户ID: {}）", user.getId());

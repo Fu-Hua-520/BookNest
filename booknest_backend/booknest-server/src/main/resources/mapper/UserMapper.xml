@@ -32,4 +32,31 @@
         values (#{id}, #{account}, #{username}, #{password}, #{phone}, #{email}, #{avatar}, #{userLevel}, #{status}, #{role})
     </insert>
 
+    <!-- 管理后台：关键字/状态条件查询用户列表（不含密码，供 PageHelper 分页） -->
+    <select id="list" resultType="com.fuhua.booknest.pojo.vo.UserAdminVO">
+        select id, account, username, phone, email, avatar, user_level, status, role, create_time
+        from booknest.`user`
+        <where>
+            <if test="keyword != null and keyword != ''">
+                and (username like concat('%', #{keyword}, '%')
+                     or account like concat('%', #{keyword}, '%')
+                     or email like concat('%', #{keyword}, '%'))
+            </if>
+            <if test="status != null">
+                and status = #{status}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <!-- 更新用户状态 -->
+    <update id="updateStatus">
+        update booknest.`user` set status = #{status} where id = #{id}
+    </update>
+
+    <!-- 更新用户角色 -->
+    <update id="updateRole">
+        update booknest.`user` set role = #{role} where id = #{id}
+    </update>
+
 </mapper>

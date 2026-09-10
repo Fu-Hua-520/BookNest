@@ -4,6 +4,7 @@ import com.fuhua.booknest.pojo.entity.Post;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -109,4 +110,30 @@ public interface PostMapper {
      * @return 帖子列表
      */
     List<Post> selectAllApproved();
+
+    /**
+     * 帖子审核（设置审核状态、审核原因、审核时间）
+     * @param id 帖子ID
+     * @param auditStatus 审核状态
+     * @param auditReason 审核原因
+     * @param auditTime 审核时间
+     */
+    void audit(@Param("id") String id,
+               @Param("auditStatus") Integer auditStatus,
+               @Param("auditReason") String auditReason,
+               @Param("auditTime") LocalDateTime auditTime);
+
+    /**
+     * 更新帖子状态
+     * @param id 帖子ID
+     * @param status 帖子状态
+     */
+    void updateStatus(@Param("id") String id, @Param("status") Integer status);
+
+    /**
+     * 更新帖子置顶状态
+     * @param id 帖子ID
+     * @param isTop 是否置顶（0/1）
+     */
+    void updateIsTop(@Param("id") String id, @Param("isTop") Integer isTop);
 }

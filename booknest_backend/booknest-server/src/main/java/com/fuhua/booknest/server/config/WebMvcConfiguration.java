@@ -13,6 +13,7 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+import com.fuhua.booknest.server.interceptor.JwtTokenAdminInterceptor;
 import com.fuhua.booknest.server.interceptor.JwtTokenUserInterceptor;
 
 import io.swagger.v3.oas.models.OpenAPI;
@@ -34,6 +35,9 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
     @Autowired
     private JwtTokenUserInterceptor jwtTokenUserInterceptor;
 
+    @Autowired
+    private JwtTokenAdminInterceptor jwtTokenAdminInterceptor;
+
     /**
      * 注册自定义拦截器
      */
@@ -49,6 +53,10 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .excludePathPatterns("/user/register")
                 .excludePathPatterns("/user/password/**")
                 .excludePathPatterns("/common/**");
+
+        // 注册管理后台拦截器
+        registry.addInterceptor(jwtTokenAdminInterceptor)
+                .addPathPatterns("/admin/**");
 
         log.info("JWT拦截器注册完成");
     }

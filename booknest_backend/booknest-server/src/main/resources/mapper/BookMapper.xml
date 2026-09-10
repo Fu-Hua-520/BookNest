@@ -49,4 +49,15 @@
         delete from booknest.`book` where id = #{id}
     </delete>
 
+    <!-- 管理后台：关键字条件查询书籍列表（供 PageHelper 分页） -->
+    <select id="list" resultType="com.fuhua.booknest.pojo.entity.Book">
+        select * from booknest.`book`
+        <where>
+            <if test="keyword != null and keyword != ''">
+                and title like concat('%', #{keyword}, '%')
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
 </mapper>

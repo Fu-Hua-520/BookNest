@@ -6,6 +6,8 @@ import com.fuhua.booknest.common.exception.BaseException;
 import com.fuhua.booknest.pojo.entity.Book;
 import com.fuhua.booknest.server.mapper.BookMapper;
 import com.fuhua.booknest.server.service.BookService;
+import com.github.pagehelper.PageHelper;
+import com.github.pagehelper.PageInfo;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -267,5 +269,57 @@ public class BookServiceImpl implements BookService {
             values.add(node.asText());
         }
         return String.join(", ", values);
+    }
+
+    /**
+     * 管理后台：分页查询书籍列表
+     * @param keyword 书名关键字（可空）
+     * @param page 页码
+     * @param pageSize 每页条数
+     * @return 分页结果
+     */
+    @Override
+    public PageInfo<Book> listBooks(String keyword, Integer page, Integer pageSize) {
+        if (page == null || page <= 0) {
+            page = 1;
+        }
+        if (pageSize == null || pageSize <= 0) {
+            pageSize = 10;
+        }
+        if (keyword != null && keyword.trim().isEmpty()) {
+            keyword = null;
+        }
+
+        PageHelper.startPage(page, pageSize);
+        List<Book> list = bookMapper.list(keyword);
+        return new PageInfo<>(list);
+    }
+
+    /**
+     * 更新书籍信息
+     * @param book 书籍信息（含 id）
+     */
+    @Override
+    public void updateBook(Book book) {
+        if (book.getId() == null || book.getId().trim().isEmpty()) {
+            throw new BaseException("书籍ID不能为空");
+        }
+        if (bookMapper.selectById(book.getId()) == null) {
+            throw new BaseException("书籍不存在");
+        }
+        book.setUpdateTime(LocalDateTime.now());
+        bookMapper.update(book);
+    }
+
+    /**
+     * 删除书籍
+     * @param id 书籍ID
+     */
+    @Override
+    public void deleteBook(String id) {
+        if (bookMapper.selectById(id) == null) {
+            throw new BaseException("书籍不存在");
+        }
+        bookMapper.deleteById(id);
     }
 }
