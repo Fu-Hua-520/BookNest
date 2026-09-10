@@ -51,6 +51,11 @@ spring:
           multiplier: 2.0         # 重试间隔翻倍（3s → 6s → 12s）
   # Spring AI 模型配置
   ai:
+    # 模型类型选择：显式指定默认对话模型为 DeepSeek。
+    # DeepSeek 与 OpenAI 两个 starter 均会自动装配 ChatModel（matchIfMissing=true），
+    # 若不指定会导致注入 ChatModel / ChatClient.Builder 时出现多 Bean 冲突。
+    model:
+      chat: deepseek
     # DeepSeek 对话模型（原生 starter）
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
