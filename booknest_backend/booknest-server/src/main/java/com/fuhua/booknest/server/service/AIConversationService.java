@@ -33,11 +33,19 @@ public interface AIConversationService {
     List<AIMessage> getConversationMessages(String conversationId, String userId);
 
     /**
-     * 更新会话标题（仅更新 title 与 update_time）
+     * 更新会话标题（仅更新 title 与 update_time，先校验会话归属）
      * @param conversationId 会话ID
+     * @param userId 用户ID
      * @param title 新标题
      */
-    void updateConversationTitle(String conversationId, String title);
+    void updateConversationTitle(String conversationId, String userId, String title);
+
+    /**
+     * 校验会话归属，防止越权访问
+     * @param conversationId 会话ID
+     * @param userId 用户ID
+     */
+    void checkOwnership(String conversationId, String userId);
 
     /**
      * 删除会话（校验归属后软删除 status=0）

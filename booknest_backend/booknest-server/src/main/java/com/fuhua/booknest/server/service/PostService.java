@@ -35,6 +35,14 @@ public interface PostService {
     List<PostVO> listPosts(String categoryId, String tagId, Integer auditStatus, Integer page, Integer pageSize);
 
     /**
+     * 按关键词搜索已过审帖子（供 AI 工具调用）
+     * @param keyword 搜索关键词（可空，为空返回空列表）
+     * @param limit 返回条数上限
+     * @return 帖子卡片列表
+     */
+    List<PostVO> searchPosts(String keyword, int limit);
+
+    /**
      * 更新帖子
      * @param postId 帖子ID
      * @param dto 更新信息

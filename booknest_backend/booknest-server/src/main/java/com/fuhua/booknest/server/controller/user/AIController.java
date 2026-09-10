@@ -20,6 +20,9 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
+
 /**
  * AI 助手控制器（SSE 流式对话 + 额度管控）
  */
@@ -129,12 +132,25 @@ public class AIController {
         if (user.getUserLevel() != 0) {
             return true;
         }
-        // 首次初始化免费额度（仅当 key 不存在时设置）
+        // 首次初始化免费额度（仅当 key 不存在时设置），并设置过期时间到次日零点实现每日重置
         String key = RedisConstant.AI_QUOTA + userId;
-        stringRedisTemplate.opsForValue().setIfAbsent(key, String.valueOf(RedisConstant.AI_QUOTA_FREE));
+        Boolean firstSet = stringRedisTemplate.opsForValue().setIfAbsent(key, String.valueOf(RedisConstant.AI_QUOTA_FREE));
+        if (Boolean.TRUE.equals(firstSet)) {
+            stringRedisTemplate.expire(key, Duration.ofSeconds(secondsUntilMidnight()));
+        }
         // 扣减一次额度，返回值 >= 0 表示仍有额度
         Long remaining = stringRedisTemplate.opsForValue().decrement(key);
         return remaining != null && remaining >= 0;
+    }
+
+    /**
+     * 计算当前时刻到次日零点的秒数
+     * @return 剩余秒数
+     */
+    private long secondsUntilMidnight() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime midnight = now.toLocalDate().plusDays(1).atStartOfDay();
+        return Duration.between(now, midnight).getSeconds();
     }
 
     /**

@@ -56,6 +56,16 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public String getOrCreateConversationId(String currentUserId, String targetUserId) {
+        // 目标用户校验：为空、为自己、或不存在均拒绝
+        if (targetUserId == null || targetUserId.isEmpty()) {
+            throw new BaseException("目标用户不存在");
+        }
+        if (targetUserId.equals(currentUserId)) {
+            throw new BaseException("不能给自己发私信");
+        }
+        if (userMapper.getUserById(targetUserId) == null) {
+            throw new BaseException("目标用户不存在");
+        }
         // 字典序确定 user1 为较小者，user2 为较大者，保证用户对唯一
         String user1Id;
         String user2Id;
@@ -82,6 +92,16 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public List<ChatMsgVO> getMessages(String conversationId, String currentUserId, int page, int pageSize) {
+        // 分页参数兜底：页码最小为 1，每页条数限制在 [1, 100]
+        if (page < 1) {
+            page = 1;
+        }
+        if (pageSize < 1) {
+            pageSize = 50;
+        }
+        if (pageSize > 100) {
+            pageSize = 100;
+        }
         // 校验会话归属，防止越权访问
         ChatConversation conversation = chatMapper.findConversationById(conversationId);
         if (conversation == null
@@ -115,6 +135,10 @@ public class ChatServiceImpl implements ChatService {
 
     @Override
     public ChatMsgVO saveAndPushMessage(String senderId, String receiverId, String content) {
+        // 消息内容长度上限加固
+        if (content != null && content.length() > 2000) {
+            throw new BaseException("消息内容过长");
+        }
         String conversationId = getOrCreateConversationId(senderId, receiverId);
         ChatMsg message = ChatMsg.builder()
                 .id(UUID.randomUUID().toString())

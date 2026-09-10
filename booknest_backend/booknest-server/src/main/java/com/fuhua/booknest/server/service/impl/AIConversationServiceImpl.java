@@ -81,12 +81,14 @@ public class AIConversationServiceImpl implements AIConversationService {
     }
 
     /**
-     * 更新会话标题
+     * 更新会话标题（先校验归属，防止越权修改他人会话）
      * @param conversationId 会话ID
+     * @param userId 用户ID
      * @param title 新标题
      */
     @Override
-    public void updateConversationTitle(String conversationId, String title) {
+    public void updateConversationTitle(String conversationId, String userId, String title) {
+        checkOwnership(conversationId, userId);
         aiConversationMapper.update(AIConversation.builder()
                 .id(conversationId)
                 .title(title)
@@ -158,7 +160,8 @@ public class AIConversationServiceImpl implements AIConversationService {
      * @param conversationId 会话ID
      * @param userId 用户ID
      */
-    private void checkOwnership(String conversationId, String userId) {
+    @Override
+    public void checkOwnership(String conversationId, String userId) {
         AIConversation conversation = aiConversationMapper.selectById(conversationId);
         if (conversation == null || !userId.equals(conversation.getUserId())) {
             throw new BaseException("无权访问该会话");

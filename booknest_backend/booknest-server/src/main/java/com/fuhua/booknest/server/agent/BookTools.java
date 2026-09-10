@@ -41,7 +41,7 @@ public class BookTools {
     @Tool(name = "searchPosts", description = "按关键词搜索论坛帖子，返回相关帖子列表")
     public List<PostVO> searchPosts(@ToolParam(description = "搜索关键词") String keyword) {
         log.info("AI 工具调用 searchPosts, keyword={}", keyword);
-        return postService.listPosts(null, null, 1, 1, 10);
+        return postService.searchPosts(keyword, 10);
     }
 
     /**

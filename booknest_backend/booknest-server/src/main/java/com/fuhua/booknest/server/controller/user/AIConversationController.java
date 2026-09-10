@@ -55,7 +55,7 @@ public class AIConversationController {
     @PostMapping("/{id}/title")
     @Operation(summary = "更新会话标题")
     public Result<String> updateTitle(@PathVariable String id, @RequestParam String title) {
-        conversationService.updateConversationTitle(id, title);
+        conversationService.updateConversationTitle(id, BaseContext.getCurrentId(), title);
         return Result.success("更新成功");
     }
 

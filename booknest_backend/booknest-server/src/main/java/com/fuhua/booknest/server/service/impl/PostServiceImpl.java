@@ -197,6 +197,22 @@ public class PostServiceImpl implements PostService {
     }
 
     @Override
+    public List<PostVO> searchPosts(String keyword, int limit) {
+        // 关键词为空时直接返回空列表，不报错
+        if (keyword == null || keyword.trim().isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Post> posts = postMapper.searchByKeyword(keyword, limit);
+        List<PostVO> result = new ArrayList<>();
+        if (posts != null) {
+            for (Post post : posts) {
+                result.add(toPostVO(post));
+            }
+        }
+        return result;
+    }
+
+    @Override
     @Transactional
     public void updatePost(String postId, PostUpdateDTO dto) {
         Post post = postMapper.selectById(postId);

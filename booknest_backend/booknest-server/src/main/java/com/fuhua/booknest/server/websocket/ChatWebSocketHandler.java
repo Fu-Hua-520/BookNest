@@ -15,6 +15,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -26,9 +27,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     /**
-     * 在线用户会话映射：userId -> WebSocketSession
+     * 在线用户会话映射：userId -> Set<WebSocketSession>
+     * 同一用户多端连接各自独立，互不覆盖
      */
-    public static final Map<String, WebSocketSession> SESSIONS = new ConcurrentHashMap<>();
+    public static final Map<String, Set<WebSocketSession>> SESSIONS = new ConcurrentHashMap<>();
 
     private final ChatService chatService;
     private final ObjectMapper objectMapper;
@@ -50,7 +52,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionEstablished(WebSocketSession session) throws Exception {
         String userId = getUserId(session);
         if (userId != null) {
-            SESSIONS.put(userId, session);
+            SESSIONS.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
             log.info("用户 {} 建立 WebSocket 连接", userId);
         }
     }
@@ -62,7 +64,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         String userId = getUserId(session);
         if (userId != null) {
-            SESSIONS.remove(userId);
+            Set<WebSocketSession> sessions = SESSIONS.get(userId);
+            if (sessions != null) {
+                sessions.remove(session);
+                // 仅当该用户已无任何在线连接时才移除映射，避免并发下误删新连接
+                if (sessions.isEmpty()) {
+                    SESSIONS.remove(userId, sessions);
+                }
+            }
             log.info("用户 {} 断开 WebSocket 连接", userId);
         }
     }
@@ -99,9 +108,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         // 发送 ACK 回执给发送方
         sendToSession(session, wrapType("ACK", msgVO));
 
-        // 接收方在线则推送消息（isMine 视角切换为 false）
-        WebSocketSession receiverSession = SESSIONS.get(receiverId);
-        if (receiverSession != null && receiverSession.isOpen()) {
+        // 接收方在线则推送消息（isMine 视角切换为 false），多端连接逐端推送
+        Set<WebSocketSession> receiverSessions = SESSIONS.get(receiverId);
+        if (receiverSessions != null && !receiverSessions.isEmpty()) {
             ChatMsgVO receiverVO = ChatMsgVO.builder()
                     .id(msgVO.getId())
                     .conversationId(msgVO.getConversationId())
@@ -114,7 +123,9 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
                     .createTime(msgVO.getCreateTime())
                     .isMine(false)
                     .build();
-            sendToSession(receiverSession, wrapType("MESSAGE", receiverVO));
+            for (WebSocketSession receiverSession : receiverSessions) {
+                sendToSession(receiverSession, wrapType("MESSAGE", receiverVO));
+            }
         }
     }
 
@@ -127,8 +138,16 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         if (userId == null) {
             return false;
         }
-        WebSocketSession session = SESSIONS.get(userId);
-        return session != null && session.isOpen();
+        Set<WebSocketSession> sessions = SESSIONS.get(userId);
+        if (sessions == null || sessions.isEmpty()) {
+            return false;
+        }
+        for (WebSocketSession session : sessions) {
+            if (session.isOpen()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

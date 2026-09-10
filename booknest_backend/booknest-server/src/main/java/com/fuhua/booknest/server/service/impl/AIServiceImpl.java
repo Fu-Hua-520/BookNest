@@ -130,6 +130,8 @@ public class AIServiceImpl implements AIService {
         if (dto.getConversationId() == null || dto.getConversationId().isBlank()) {
             sessionId = conversationService.createConversation(userId);
         } else {
+            // 校验会话归属，防止越权读取/写入他人会话
+            conversationService.checkOwnership(dto.getConversationId(), userId);
             sessionId = dto.getConversationId();
         }
         final String model = resolveModel(dto);
@@ -203,12 +205,15 @@ public class AIServiceImpl implements AIService {
         List<AssistantMessage.ToolCall> toolCalls = output.getToolCalls();
         if (toolCalls != null && !toolCalls.isEmpty()) {
             for (AssistantMessage.ToolCall tc : toolCalls) {
-                events.add(ChatStreamEvent.toolCalling(ChatStreamEvent.ToolCall.builder()
+                ChatStreamEvent toolCallingEvent = ChatStreamEvent.toolCalling(ChatStreamEvent.ToolCall.builder()
                         .toolName(tc.name())
                         .displayName(TOOL_DISPLAY_NAMES.getOrDefault(tc.name(), tc.name()))
                         .parameters(tc.arguments())
                         .status(ChatStreamEvent.ToolStatus.calling)
-                        .build()));
+                        .build());
+                // 补填会话ID，避免 SSE 事件 id 为空
+                toolCallingEvent.setSessionId(sessionId);
+                events.add(toolCallingEvent);
             }
             return events;
         }

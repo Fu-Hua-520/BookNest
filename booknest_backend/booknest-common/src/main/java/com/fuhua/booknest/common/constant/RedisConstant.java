@@ -110,7 +110,7 @@ public class RedisConstant {
      * 普通用户（user_level=0）AI 提问剩余额度
      * Key: ai:quota:{userId}
      * Value: Integer（剩余次数，初始 10）
-     * 过期时间：永久
+     * 过期时间：每日额度，次日零点重置
      */
     public static final String AI_QUOTA = "ai:quota:";
 
