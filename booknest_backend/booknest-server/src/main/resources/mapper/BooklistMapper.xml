@@ -44,6 +44,7 @@
             <if test="summary != null">summary = #{summary},</if>
             <if test="coverImage != null">cover_image = #{coverImage},</if>
             <if test="visibility != null">visibility = #{visibility},</if>
+            <if test="updateTime != null">update_time = #{updateTime},</if>
         </set>
         where id = #{id}
     </update>
@@ -52,5 +53,15 @@
     <delete id="deleteById">
         delete from booknest.`booklist` where id = #{id}
     </delete>
+
+    <!-- 书单内书籍数量 +1 -->
+    <update id="incrementBookCount">
+        update booknest.`booklist` set book_count = book_count + 1 where id = #{id}
+    </update>
+
+    <!-- 书单内书籍数量 -1 -->
+    <update id="decrementBookCount">
+        update booknest.`booklist` set book_count = book_count - 1 where id = #{id}
+    </update>
 
 </mapper>

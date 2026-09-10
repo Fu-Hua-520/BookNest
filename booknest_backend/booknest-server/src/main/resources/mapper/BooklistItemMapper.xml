@@ -31,4 +31,14 @@
         select * from booknest.`booklist_item` where booklist_id = #{booklistId} order by sort_order asc
     </select>
 
+    <!-- 根据条目ID查询书单条目 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.BooklistItem">
+        select * from booknest.`booklist_item` where id = #{id}
+    </select>
+
+    <!-- 根据条目ID删除书单条目 -->
+    <delete id="deleteById">
+        delete from booknest.`booklist_item` where id = #{id}
+    </delete>
+
 </mapper>

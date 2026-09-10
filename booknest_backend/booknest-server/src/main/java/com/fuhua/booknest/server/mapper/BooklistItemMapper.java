@@ -33,4 +33,17 @@ public interface BooklistItemMapper {
      * @return 书单条目列表
      */
     List<BooklistItem> listByBooklistId(@Param("booklistId") String booklistId);
+
+    /**
+     * 根据条目ID查询书单条目
+     * @param id 条目ID
+     * @return 书单条目
+     */
+    BooklistItem selectById(@Param("id") String id);
+
+    /**
+     * 根据条目ID删除书单条目
+     * @param id 条目ID
+     */
+    void deleteById(@Param("id") String id);
 }

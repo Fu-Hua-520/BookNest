@@ -48,4 +48,16 @@ public interface BooklistMapper {
      * @param id 书单ID
      */
     void deleteById(@Param("id") String id);
+
+    /**
+     * 书单内书籍数量 +1
+     * @param id 书单ID
+     */
+    void incrementBookCount(@Param("id") String id);
+
+    /**
+     * 书单内书籍数量 -1
+     * @param id 书单ID
+     */
+    void decrementBookCount(@Param("id") String id);
 }
