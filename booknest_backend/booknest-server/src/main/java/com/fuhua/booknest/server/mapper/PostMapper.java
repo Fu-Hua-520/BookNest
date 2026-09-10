@@ -32,11 +32,13 @@ public interface PostMapper {
     /**
      * 条件查询帖子列表（供 PageHelper 分页）
      * @param categoryId 分类ID（可空）
+     * @param tagId 标签ID（可空）
      * @param auditStatus 审核状态（可空）
      * @param status 帖子状态（可空）
      * @return 帖子列表
      */
     List<Post> list(@Param("categoryId") String categoryId,
+                    @Param("tagId") String tagId,
                     @Param("auditStatus") Integer auditStatus,
                     @Param("status") Integer status);
 

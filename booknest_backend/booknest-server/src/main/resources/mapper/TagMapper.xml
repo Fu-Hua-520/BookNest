@@ -27,6 +27,23 @@
         select * from booknest.`tag` order by use_count desc
     </select>
 
+    <!-- 查询热门标签（按使用次数降序取前 limit 条） -->
+    <select id="listHotTags" resultType="com.fuhua.booknest.pojo.entity.Tag">
+        select * from booknest.`tag` order by use_count desc limit #{limit}
+    </select>
+
+    <!-- 按名称模糊搜索标签 -->
+    <select id="searchByKeyword" resultType="com.fuhua.booknest.pojo.entity.Tag">
+        select * from booknest.`tag`
+        where name like concat('%', #{keyword}, '%')
+        order by use_count desc
+    </select>
+
+    <!-- 标签使用次数 +1 -->
+    <update id="incrementUseCount">
+        update booknest.`tag` set use_count = use_count + 1 where id = #{id}
+    </update>
+
     <!-- 更新标签信息 -->
     <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Tag">
         update booknest.`tag`
