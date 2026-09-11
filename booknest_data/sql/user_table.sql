@@ -2,6 +2,12 @@
 -- BookNest 用户表设计
 -- ====================================
 
+-- 强制客户端连接字符集为 utf8mb4（必须放在文件最前）
+-- 容器内 mysql 客户端在 LANG 未设置时默认使用 latin1，会把脚本里的中文
+-- 按 cp1252 误解后再编码为 utf8mb4，形成永久性双重编码乱码。
+-- 详见 docker-compose.yml 中 mysql 服务的 LANG 说明。
+SET NAMES utf8mb4;
+
 -- 创建数据库（如果不存在）
 CREATE DATABASE IF NOT EXISTS booknest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

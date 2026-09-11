@@ -144,7 +144,7 @@ export function resetUserQuota(userId) {
 
 /* ------------------------- 向量库 ------------------------- */
 
-/** 全量重嵌入帖子向量 → 处理条数 */
-export function batchEmbed() {
-  return http.post('/admin/embedding/batch', null, { timeout: 600000 })
+/** 手动重建 RAG 索引：清空集合后重新写入点赞量前 N 的热门帖 → 重建统计 */
+export function rebuildRagIndex() {
+  return http.post('/admin/embedding/rebuild', null, { timeout: 600000 })
 }

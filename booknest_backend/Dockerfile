@@ -9,15 +9,18 @@ COPY booknest-common/pom.xml booknest-common/
 COPY booknest-pojo/pom.xml booknest-pojo/
 COPY booknest-server/pom.xml booknest-server/
 
-# 下载依赖（如需加速可配置阿里云镜像 settings.xml，项目当前未提供，默认走 Maven Central）
-RUN mvn dependency:go-offline -B
+# 阿里云镜像 settings，加速依赖下载（容器内读不到宿主机 ~/.m2/settings.xml）
+COPY settings.xml /root/.m2/settings.xml
+
+# 下载依赖；用 cache mount 缓存本地仓库，重复构建不再全量重下
+RUN --mount=type=cache,target=/root/.m2/repository mvn dependency:go-offline -B
 
 # 2. 复制源码并执行打包
 COPY booknest-common/src booknest-common/src
 COPY booknest-pojo/src booknest-pojo/src
 COPY booknest-server/src booknest-server/src
 
-RUN mvn clean package -DskipTests -B
+RUN --mount=type=cache,target=/root/.m2/repository mvn clean package -DskipTests -B
 
 # 第二阶段：运行阶段 (Runtime Stage)
 # 使用轻量级 JRE 环境

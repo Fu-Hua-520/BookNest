@@ -56,14 +56,17 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
                 .addPathPatterns("/follow/**")
                 .addPathPatterns("/notification/**")
                 .addPathPatterns("/chat/**")
+                // 文件上传需登录，防止匿名刷 OSS 流量
+                .addPathPatterns("/common/**")
                 .excludePathPatterns("/user/login")
                 .excludePathPatterns("/user/register")
-                .excludePathPatterns("/user/password/**")
-                .excludePathPatterns("/common/**");
+                .excludePathPatterns("/user/password/**");
 
         // 注册管理后台拦截器
+        // /admin/login 必须排除，否则登录接口自身会被要求先登录，形成死循环
         registry.addInterceptor(jwtTokenAdminInterceptor)
-                .addPathPatterns("/admin/**");
+                .addPathPatterns("/admin/**")
+                .excludePathPatterns("/admin/login");
 
         log.info("JWT拦截器注册完成");
     }

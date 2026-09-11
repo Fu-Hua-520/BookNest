@@ -4,6 +4,8 @@ import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 import lombok.extern.slf4j.Slf4j;
 
@@ -17,6 +19,9 @@ import lombok.extern.slf4j.Slf4j;
 @SpringBootApplication
 @MapperScan("com.fuhua.booknest.server.mapper")
 @ComponentScan(basePackages = "com.fuhua.booknest")
+@EnableAsync
+// RAG 索引需要按周期自动重建（参见 PostEmbeddingServiceImpl#refreshTask）
+@EnableScheduling
 @Slf4j
 public class BookNestApplication {
 

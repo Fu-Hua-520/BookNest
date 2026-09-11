@@ -72,6 +72,22 @@
         delete from booknest.`post` where id = #{id}
     </delete>
 
+    <!-- 取「按点赞量排序前 N 条」已发布且审核通过的帖子 ID 集合，供 RAG 召回限定范围 -->
+    <select id="listHotApprovedPostIds" resultType="java.lang.String">
+        select id from booknest.`post`
+        where audit_status = 1 and status = 1
+        order by like_count desc, publish_time desc
+        limit #{hotTopN}
+    </select>
+
+    <!-- 按 ID 集合批量查询帖子，用于召回后补全 title/summary 等 -->
+    <select id="selectByIds" resultType="com.fuhua.booknest.pojo.entity.Post">
+        select * from booknest.`post` where id in
+        <foreach collection="postIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+    </select>
+
     <!-- 浏览量 +1 -->
     <update id="incrementViewCount">
         update booknest.`post` set view_count = view_count + 1 where id = #{id}
@@ -121,11 +137,6 @@
         limit #{limit}
     </select>
 
-    <!-- 查询全部已过审帖子（供批量向量化入库） -->
-    <select id="selectAllApproved" resultType="com.fuhua.booknest.pojo.entity.Post">
-        select * from booknest.`post` where audit_status = 1 order by publish_time desc
-    </select>
-
     <!-- 帖子审核（设置审核状态、审核原因、审核时间） -->
     <update id="audit">
         update booknest.`post` set audit_status = #{auditStatus}, audit_reason = #{auditReason}, audit_time = #{auditTime} where id = #{id}
@@ -140,5 +151,10 @@
     <update id="updateIsTop">
         update booknest.`post` set is_top = #{isTop} where id = #{id}
     </update>
+
+    <!-- 统计使用指定分类的帖子数（删除分类前的引用检查） -->
+    <select id="countByCategoryId" resultType="int">
+        select count(*) from booknest.`post` where category_id = #{categoryId}
+    </select>
 
 </mapper>

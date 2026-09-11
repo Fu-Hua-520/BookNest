@@ -9,6 +9,7 @@ import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -16,7 +17,9 @@ import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * JWT令牌校验拦截器 - 管理后台端
- * 校验令牌中的角色是否为 ADMIN，非管理员拒绝访问
+ * 从管理端专属请求头（adminTokenName）取令牌，使用管理端专属密钥（adminSecretKey）验签，
+ * 再校验令牌中的角色是否为 ADMIN，非管理员拒绝访问。
+ * 与用户端拦截器完全隔离：用户端令牌无法通过此处校验。
  */
 @Component
 @Slf4j
@@ -36,12 +39,18 @@ public class JwtTokenAdminInterceptor implements HandlerInterceptor {
      */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 1、从请求头中获取令牌（不打印 token 明文）
-        String token = request.getHeader(jwtProperties.getUserTokenName());
+        // 判断当前拦截到的是Controller的方法还是其他资源
+        if (!(handler instanceof HandlerMethod)) {
+            // 当前拦截到的不是动态方法，直接放行
+            return true;
+        }
+
+        // 1、从管理端专属请求头中获取令牌（不打印 token 明文）
+        String token = request.getHeader(jwtProperties.getAdminTokenName());
 
         try {
-            // 2、解析令牌
-            Claims claims = JwtUtil.parseJWT(jwtProperties.getUserSecretKey(), token);
+            // 2、使用管理端专属密钥解析令牌（与用户端密钥完全隔离）
+            Claims claims = JwtUtil.parseJWT(jwtProperties.getAdminSecretKey(), token);
 
             // 3、校验角色必须为管理员
             Object role = claims.get(JwtClaimsConstant.ROLE);

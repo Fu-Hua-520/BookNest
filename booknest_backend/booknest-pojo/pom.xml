@@ -6,7 +6,7 @@
     <!-- 父工程 -->
     <parent>
         <groupId>com.fuhua</groupId>
-        <artifactId>booknest_backend</artifactId>
+        <artifactId>booknest-backend</artifactId>
         <version>0.0.1-SNAPSHOT</version>
     </parent>
 

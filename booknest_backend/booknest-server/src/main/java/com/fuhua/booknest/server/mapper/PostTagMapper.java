@@ -33,4 +33,10 @@ public interface PostTagMapper {
      * @return 标签ID列表
      */
     List<String> listTagIdsByPostId(@Param("postId") String postId);
+    /**
+     * 统计使用指定标签的帖子数（删除标签前的引用检查）
+     * @param tagId 标签ID
+     * @return 关联帖子数
+     */
+    int countByTagId(@Param("tagId") String tagId);
 }

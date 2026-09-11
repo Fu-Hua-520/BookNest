@@ -1,208 +1,163 @@
 package com.fuhua.booknest.server.service.impl;
 
+import com.fuhua.booknest.common.constant.RagPayloadConstant;
 import com.fuhua.booknest.pojo.entity.Post;
-import com.fuhua.booknest.pojo.entity.User;
 import com.fuhua.booknest.pojo.vo.RagHit;
 import com.fuhua.booknest.server.mapper.PostMapper;
-import com.fuhua.booknest.server.mapper.UserMapper;
 import com.fuhua.booknest.server.service.RagRetrievalService;
-import com.fuhua.booknest.server.vectorstore.ZVectorStore;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.ai.vectorstore.filter.Filter.Expression;
+import org.springframework.ai.vectorstore.filter.FilterExpressionBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * RAG 混合检索服务实现。
+ * RAG 检索：在一批指定帖子的内容里，找出与问题最相关的几段。
  *
- * <p>仅在 {@code booknest.zvector.enabled=true} 时装配（强依赖 {@link ZVectorStore}）。
- * 流程：HyDE 假设文档 → 向量召回 → 关键词召回 → RRF 融合去重 → TopK。</p>
+ * <h3>检索范围：点赞量前 N 的热门帖</h3>
+ * <p>不是全站检索。先从 MySQL 查出「已发布且已审核、按点赞量倒序」的前 {@code N} 篇帖子 ID，
+ * 只在这些帖子的向量里找答案。</p>
+ *
+ * <h3>为什么是 SearchRequest 而不是直接调 方法</h3>
+ * <p>{@link SearchRequest} 就是 Spring AI 封装的「一次检索的全部条件」：
+ * 问句原文、要几条、相似度下限、过滤条件。框架内部会先用 {@code EmbeddingModel}
+ * 把问句转成向量，再把整个请求交给 Qdrant。</p>
+ *
+ * <h3>为什么要把热门 ID 列表放进 filter</h3>
+ * <p>如果不传过滤条件，Qdrant 会在全部帖子里找最相似的。传了
+ * {@code postId in [热门100个ID]} 之后，Qdrant 在遍历索引时就顺带检查条件，
+ * 不符合的候选直接跳过，不会返回给我们再筛。</p>
+ *
+ * <h3>为什么要去重</h3>
+ * <p>一篇帖子被切成多个块，可能好几块都和问题相关。这里按帖子只保留
+ * 最靠前的那一块，让最终结果是「N 篇相关帖子」而不是「N 段同一篇的内容」。</p>
  */
-@Service
 @Slf4j
-@ConditionalOnProperty(prefix = "booknest.zvector", name = "enabled", havingValue = "true")
+@Service
 public class RagRetrievalServiceImpl implements RagRetrievalService {
 
-    /** RRF 融合公式中的常数 k（rank 从 1 起，score = Σ 1/(rank + 60)） */
-    private static final double RRF_K = 60.0;
-
-    /** 向量召回条数 */
-    private static final int VECTOR_TOP_K = 8;
-
-    /** 关键词召回条数 */
-    private static final int KEYWORD_TOP_K = 5;
-
-    /** 向量召回相似度阈值 */
+    /** 相似度下限（0~1，越大越严格）。低于此值的结果不采纳 */
     private static final double SIMILARITY_THRESHOLD = 0.4;
 
-    /** HyDE 假设文档生成提示词 */
-    private static final String HYDE_PROMPT =
-            "你是书虫社区 BookNest 的一名资深读者。请以论坛帖子作者的口吻，围绕下面问题写一段书籍推荐或读书观点分享片段，约150字，直接输出正文，不要标题与任何解释：\n问题：";
+    /**
+     * 一篇帖子切成多个块，多召回一些才能在「按帖子去重」之后还凑够目标条数。
+     * 例如要 5 条结果，实际向 Qdrant 要 5×8=40 条候选。
+     */
+    private static final int OVER_FETCH_FACTOR = 8;
 
-    /** 关键词召回去除的常见意图词（去掉后若为空则回退原查询） */
-    private static final String[] INTENT_WORDS = {
-            "推荐", "有哪些", "介绍一下", "帮我找", "什么书", "关于", "有没有", "请", "帮忙",
-            "我想", "找一", "书籍", "书", "求"
-    };
+    @Autowired(required = false)
+    private VectorStore vectorStore;
 
-    @Autowired
-    private ChatModel chatModel;
-    @Autowired
-    private ZVectorStore zVectorStore;
     @Autowired
     private PostMapper postMapper;
-    @Autowired
-    private UserMapper userMapper;
+
+    /** 候选范围大小：取点赞量最高的前多少篇帖子 */
+    @Value("${booknest.rag.hot-top-n:100}")
+    private int hotTopN;
 
     @Override
     public List<RagHit> retrieve(String query, int topK) {
-        // 1. HyDE：生成假设文档，增强向量检索的语义表达能力
-        String hydeText;
+        if (vectorStore == null || query == null || query.isEmpty() || topK <= 0) {
+            return Collections.emptyList();
+        }
+
+        // 1. 确定检索范围：点赞量最高的前 N 篇已发布帖子
+        List<String> hotPostIds = postMapper.listHotApprovedPostIds(hotTopN);
+        if (hotPostIds == null || hotPostIds.isEmpty()) {
+            log.info("[RAG] 热门帖子为空，跳过检索");
+            return Collections.emptyList();
+        }
+
+        // 2. 拼检索条件：在这些帖子里找，多召回一些用于去重
+        Expression onlyHotPosts = new FilterExpressionBuilder()
+                .in(RagPayloadConstant.POST_ID, hotPostIds)
+                .build();
+        SearchRequest request = SearchRequest.builder()
+                .query(query)
+                .topK(topK * OVER_FETCH_FACTOR)
+                .similarityThreshold(SIMILARITY_THRESHOLD)
+                .filterExpression(onlyHotPosts)
+                .build();
+
+        // 3. 交给 Spring AI 执行（问句转向量、查 Qdrant、转回 Document 都在这里完成）
+        List<Document> docs;
         try {
-            hydeText = chatModel.call(HYDE_PROMPT + query);
-        } catch (Exception e) {
-            log.warn("HyDE 生成失败，回退使用原始查询，原因: {}", e.getMessage());
-            hydeText = query;
+            docs = vectorStore.similaritySearch(request);
+        } catch (Exception ex) {
+            log.warn("[RAG] 检索失败，降级为不使用外挂知识: {}", ex.getMessage());
+            return Collections.emptyList();
+        }
+        if (docs == null || docs.isEmpty()) {
+            return Collections.emptyList();
         }
 
-        // 2. 向量召回
-        List<Document> vectorDocs;
-        try {
-            vectorDocs = zVectorStore.similaritySearch(SearchRequest.builder()
-                    .query(hydeText)
-                    .topK(VECTOR_TOP_K)
-                    .similarityThreshold(SIMILARITY_THRESHOLD)
-                    .build());
-        } catch (Exception e) {
-            log.warn("向量召回失败，跳过向量路，原因: {}", e.getMessage());
-            vectorDocs = new ArrayList<>();
-        }
-
-        // 3. 关键词召回
-        String keyword = extractKeyword(query);
-        List<Post> keywordPosts;
-        try {
-            keywordPosts = postMapper.searchByKeyword(keyword, KEYWORD_TOP_K);
-        } catch (Exception e) {
-            log.warn("关键词召回失败，跳过关键词路，原因: {}", e.getMessage());
-            keywordPosts = new ArrayList<>();
-        }
-
-        // 4. RRF 融合 + 按 postId 去重（向量路优先，保留向量路 content 片段）
-        Map<String, RagHit> merged = new LinkedHashMap<>();
-
-        // 向量路：rank 从 1 起
-        for (int i = 0; i < vectorDocs.size(); i++) {
-            RagHit hit = toVectorHit(vectorDocs.get(i));
-            if (hit.getPostId() == null) {
-                continue;
-            }
-            hit.setScore(rrfScore(i + 1));
-            merged.put(hit.getPostId(), hit);
-        }
-
-        // 关键词路：已存在则累加得分（保留向量路 content）
-        for (int i = 0; i < keywordPosts.size(); i++) {
-            RagHit hit = toKeywordHit(keywordPosts.get(i));
-            if (hit.getPostId() == null) {
-                continue;
-            }
-            double score = rrfScore(i + 1);
-            RagHit existing = merged.get(hit.getPostId());
-            if (existing != null) {
-                existing.setScore(existing.getScore() + score);
-            } else {
-                hit.setScore(score);
-                merged.put(hit.getPostId(), hit);
+        // 4. 按帖子去重，每篇只留相似度最高的一块（Spring AI 已按相似度倒序返回）
+        Map<String, Document> bestChunkPerPost = new LinkedHashMap<>();
+        for (Document doc : docs) {
+            Object postId = doc.getMetadata() == null
+                    ? null : doc.getMetadata().get(RagPayloadConstant.POST_ID);
+            if (postId != null) {
+                bestChunkPerPost.putIfAbsent(postId.toString(), doc);
             }
         }
 
-        // 5. 按得分降序取前 topK
-        return merged.values().stream()
-                .sorted(Comparator.comparingDouble(RagHit::getScore).reversed())
-                .limit(topK)
-                .collect(java.util.stream.Collectors.toList());
+        List<Document> picked = new ArrayList<>(bestChunkPerPost.values());
+        if (picked.size() > topK) {
+            picked = picked.subList(0, topK);
+        }
+
+        // 5. 回查标题等展示信息（不在向量里存这些冗余字段，取现阶段一次性补全）
+        List<String> pickedIds = new ArrayList<>(bestChunkPerPost.keySet());
+        List<String> topIds = pickedIds.size() > topK ? pickedIds.subList(0, topK) : pickedIds;
+        Map<String, Post> postMap = new HashMap<>();
+        for (Post p : postMapper.selectByIds(new ArrayList<>(topIds))) {
+            postMap.put(p.getId(), p);
+        }
+
+        List<RagHit> hits = new ArrayList<>(picked.size());
+        for (Document doc : picked) {
+            hits.add(toRagHit(doc, postMap));
+        }
+        log.info("[RAG] 检索完成 候选={}篇 召回块={} 去重后={}", hotPostIds.size(), docs.size(), hits.size());
+        return hits;
     }
 
-    /**
-     * 提取关键词：去除常见意图词；去除后为空则回退原始查询
-     * @param query 原始查询
-     * @return 关键词
-     */
-    private String extractKeyword(String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return "";
-        }
-        String keyword = query;
-        for (String word : INTENT_WORDS) {
-            keyword = keyword.replace(word, "");
-        }
-        keyword = keyword.replaceAll("[\\s，。！？、,.:;\"'《》()（）\\[\\]【】]+", " ").trim();
-        return keyword.isEmpty() ? query.trim() : keyword;
-    }
-
-    /**
-     * 将向量召回 Document 转为 RagHit（元数据中取 postId/title/authorName，content 取文本）
-     * @param doc 向量召回文档
-     * @return 命中 VO
-     */
-    private RagHit toVectorHit(Document doc) {
-        Map<String, Object> metadata = doc.getMetadata();
+    private RagHit toRagHit(Document doc, Map<String, Post> postMap) {
+        String postId = String.valueOf(doc.getMetadata().get(RagPayloadConstant.POST_ID));
+        Post post = postMap.get(postId);
         return RagHit.builder()
-                .postId(asString(metadata.get("postId")))
-                .title(asString(metadata.get("title")))
-                .authorName(asString(metadata.get("authorName")))
+                .postId(postId)
+                .title(post != null ? post.getTitle()
+                        : String.valueOf(doc.getMetadata().get(RagPayloadConstant.TITLE)))
+                .authorName(null)
                 .content(doc.getText())
-                .source("vector")
+                .source("qdrant")
+                .score(extractScore(doc))
                 .build();
     }
 
     /**
-     * 将关键词召回 Post 转为 RagHit（content 用摘要）
-     * @param post 帖子实体
-     * @return 命中 VO
+     * 取出 Qdrant 返回的相似度。
+     * <p>Spring AI 各 VectorStore 放置分数的位置不统一：Qdrant 实现放在
+     * metadata 的 {@code distance}（余弦距离）里，相似度 = 1 - 距离。</p>
      */
-    private RagHit toKeywordHit(Post post) {
-        String authorName = null;
-        if (post.getUserId() != null) {
-            User user = userMapper.getUserById(post.getUserId());
-            if (user != null) {
-                authorName = user.getUsername();
-            }
+    private double extractScore(Document doc) {
+        Object distance = doc.getMetadata() == null ? null : doc.getMetadata().get("distance");
+        if (distance instanceof Number n) {
+            return 1.0 - n.doubleValue();
         }
-        return RagHit.builder()
-                .postId(post.getId())
-                .title(post.getTitle())
-                .authorName(authorName)
-                .content(post.getSummary())
-                .source("keyword")
-                .build();
-    }
-
-    /**
-     * RRF 得分：1 / (rank + 60)
-     * @param rank 排名（从 1 起）
-     * @return 融合得分
-     */
-    private double rrfScore(int rank) {
-        return 1.0 / (rank + RRF_K);
-    }
-
-    /**
-     * 安全转换为字符串（null 转 null）
-     * @param obj 元数据值
-     * @return 字符串值
-     */
-    private String asString(Object obj) {
-        return obj == null ? null : obj.toString();
+        // 拿不到就退化为阈值中值，排序会受影响但结果集不受影响
+        return SIMILARITY_THRESHOLD;
     }
 }

@@ -11,6 +11,12 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/**
+ * 书籍查询接口（公开，无鉴权）
+ * 只提供读操作：搜索 / 详情 / ISBN 补全。
+ * 书籍的写操作（新增、修改、删除）统一归管理后台，见 BookManagerController（/admin/book）。
+ * 该路径不在任何拦截器覆盖范围内，因此禁止在此新增写接口。
+ */
 @RestController
 @RequestMapping("/book")
 @Slf4j
@@ -19,18 +25,6 @@ public class BookController {
 
     @Autowired
     private BookService bookService;
-
-    /**
-     * 创建书籍
-     * @param book 书籍信息
-     * @return 新书 id
-     */
-    @PostMapping
-    @Operation(summary = "创建书籍")
-    public Result<String> createBook(@RequestBody Book book) {
-        Book created = bookService.createBook(book);
-        return Result.success(created.getId());
-    }
 
     /**
      * 按书名关键字搜索书籍

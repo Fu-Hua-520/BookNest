@@ -1,32 +1,28 @@
 package com.fuhua.booknest.server.service;
 
+import com.fuhua.booknest.pojo.vo.RagRebuildVO;
+
 /**
- * 帖子向量化入库服务：将帖子正文清洗分块后 embedding 写入 zvector 向量库。
+ * 帖子向量化入库服务（向量库：Qdrant）。
+ *
+ * <h3>策略：定期全量重建，而不是逐条增量维护</h3>
+ * <p>每隔一个可配置的周期（默认 30 天），把整个向量集合清空，
+ * 再重新拉取「点赞量前 N 的热门帖子」分块写进去。这样做的好处：</p>
+ * <ul>
+ *   <li>不需要判断「这篇帖子入过库没有」，没有重复数据堆积的问题</li>
+ *   <li>不需要在帖子审核 / 上下架时挂钩子去增删单条向量</li>
+ *   <li>热度排行榜变动（谁进/掉出前 N）在下一次刷新时自动生效</li>
+ * </ul>
+ *
+ * <p>代价是：在两次重建之间，新发布的帖子暂时检索不到，最长延迟一个刷新周期。</p>
  */
 public interface PostEmbeddingService {
 
     /**
-     * 将单篇帖子向量化入库
-     * @param postId 帖子ID
+     * 清空向量集合，并把当前「点赞量前 N 的热门帖」重新 embedding 写入。
+     * <p>未启用向量库时返回 {@code executed=false}，调用方无需再判断 Bean 是否存在。</p>
+     *
+     * @return 本次重建的统计信息
      */
-    void embedPost(String postId);
-
-    /**
-     * 异步将单篇帖子向量化入库（新线程执行，不阻塞主流程）
-     * @param postId 帖子ID
-     */
-    void embedPostAsync(String postId);
-
-    /**
-     * 批量将全部已过审帖子向量化入库
-     * @return 成功入库的帖子数量
-     */
-    int batchEmbedAllPosts();
-
-    /**
-     * 判断帖子是否已向量化入库
-     * @param postId 帖子ID
-     * @return 是否已入库
-     */
-    boolean isEmbedded(String postId);
+    RagRebuildVO rebuildHotPosts();
 }

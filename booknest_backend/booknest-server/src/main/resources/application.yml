@@ -70,6 +70,18 @@ spring:
       embedding:
         options:
           model: text-embedding-v3
+    # 向量库 Qdrant —— 由 spring-ai-starter-vector-store-qdrant 自动装配，
+    # 启动时会自动创建 QdrantClient 与 VectorStore 两个 Bean（维度取自上面的 text-embedding-v3）。
+    vectorstore:
+      # 单选器：值必须是 qdrant 才装配；留空则不装配任何向量库，Qdrant 没起来也不影响启动
+      type: ${QDRANT_VECTORSTORE_TYPE:}
+      qdrant:
+        host: ${QDRANT_HOST:localhost}
+        port: ${QDRANT_PORT:6334}
+        collection-name: ${RAG_COLLECTION:booknest_posts}
+        # 这里刻意不写 api-key：留空会在鉴权判断里变成空字符串而非 null，
+        # 导致客户端照样发出一个空的 api-key 头。本地 Qdrant 不开鉴权，不配最干净。
+        # 若将来接 Qdrant Cloud，再加 api-key: ${QDRANT_API_KEY} 即可。
 
 server:
   port: ${SERVER_PORT:8080}
@@ -121,13 +133,15 @@ booknest:
     access-key-id: ${OSS_ACCESS_KEY_ID:}
     access-key-secret: ${OSS_ACCESS_KEY_SECRET:}
     bucket-name: ${OSS_BUCKET_NAME:}
-  # zvector 向量库配置（对应 ZVectorProperties，prefix=booknest.zvector）
-  # enabled=false 时不会装配 ZVectorStore Bean，未配置 AnalyticDB 不影响应用启动
-  zvector:
-    enabled: false
-    jdbc-url: ${ZVECTOR_JDBC_URL:}
-    username: ${ZVECTOR_USERNAME:}
-    password: ${ZVECTOR_PASSWORD:}
-    collection: ${ZVECTOR_COLLECTION:booknest_post_embeddings}
-    top-k: 8
-    similarity-threshold: 0.4
+  # BookNest RAG 业务参数（与向量库选型无关的纯业务配置）
+  rag:
+    # 语料范围：只索引「点赞量前 N 的已发布且已过审帖子」。
+    # 向量库里只保留这 N 篇的分块，检索也只在这 N 篇里找答案。
+    hot-top-n: ${RAG_HOT_TOP_N:100}
+    # 全量重建周期：默认 30 天。写 ISO-8601 时长（P30D / PT12H / PT30M）
+    # 或直接写毫秒数都可以。到点后清空集合，再重新拉一遍热门帖入库。
+    refresh-interval: ${RAG_REFRESH_INTERVAL:P30D}
+    # 启动后延迟多久做第一次重建，留点时间给 MySQL / Qdrant 就绪
+    refresh-initial-delay: ${RAG_REFRESH_INITIAL_DELAY:PT2M}
+    # 批量入库时每处理 N 篇打印一次进度日志，设为 0 以下则关闭进度日志
+    batch-log-interval: ${RAG_BATCH_LOG_INTERVAL:50}

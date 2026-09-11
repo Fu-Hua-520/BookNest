@@ -17,7 +17,7 @@
 | AI 框架 | Spring AI 1.0.x（最新 GA） | 替换 LangChain4j |
 | 对话模型 | DeepSeek `deepseek-chat` | OpenAI 兼容端点 `https://api.deepseek.com`，支持流式 + Function Calling；`deepseek-reasoner` 可选 |
 | Embedding | 阿里云 DashScope `text-embedding-v3` | 端点 `https://dashscope.aliyuncs.com/compatible-mode/v1` |
-| 向量库 | 阿里云 AnalyticDB PostgreSQL 版（zvector） | 云服务，不在本地 compose |
+| 向量库 | Qdrant（本地容器，gRPC 6334） | 官方 starter `spring-ai-starter-vector-store-qdrant` 自动装配 |
 | 对象存储 | 阿里云 OSS（无 MinIO） | 帖子正文/封面/书籍封面 |
 | 持久层 | MyBatis + MySQL 8 + Druid + PageHelper | |
 | 缓存 | Redis | 缓存/额度/未读数/去重标记 |
@@ -28,16 +28,19 @@
 
 **Spring AI 依赖（1.0.x）**：
 - `spring-ai-starter-model-openai`：Chat 指向 DeepSeek，Embedding 指向 DashScope（OpenAI 兼容协议，两个 Bean 分别注入 key/base-url/model）。
-- zvector 向量库：无官方 starter，自定义 `VectorStore` 实现（PG 向量扩展，SQL 余弦相似度检索）；优先评估阿里云 `spring-ai-alibaba`。
+- Qdrant 向量库：有官方 starter，`spring.ai.vectorstore.type=qdrant` 即自动装配 `QdrantClient` 与 `VectorStore`，无需自写实现。
 
 ## 3. 系统架构
 
 ```
-booknest_backend (父)
+booknest-backend (父，artifactId=booknest-backend，packaging=pom)
 ├── booknest-pojo      # 实体/DTO/VO
 ├── booknest-common    # constant/context/enum/exception/properties/result/utils
 └── booknest-server    # controller(user/admin)/service/mapper/agent/config/.../mq/task/websocket
 ```
+
+> 命名约定：父工程与三个子模块统一用连字符（`booknest-` 前缀）。这样 IDEA 的模块树会归到同一个
+> `booknest` 组节点下；若父工程用下划线（旧名 `booknest_backend`），它不会被前缀分组，在模块树里会落单。
 
 基础包名：`com.fuhua.booknest`，子模块包：
 - `com.fuhua.booknest.pojo`
@@ -88,7 +91,10 @@ booknest_backend (父)
 `@Tool`/`@ToolParam` 暴露 searchPosts / getBookInfo / listBooklists / getPostContent，经 `ChatClient.defaultTools(...)` 注册。
 
 ### 6.3 RAG 链路
-分块(512字/50重叠) → EmbeddingModel 向量化 → zvector 入库；检索：HyDE → 向量召回(topK=8) → MySQL 关键词召回 → RRF 融合 Top-5 → System Prompt。
+定期全量重建（默认 30 天）：清空 Qdrant 集合 → 取点赞量前 N（默认 100）的已发布且已过审帖子 → 分块(512字/50重叠) → EmbeddingModel 向量化 → 写入 Qdrant。
+检索：在当前热门帖范围内向量召回(topK×8) → 按帖子去重 → 取 Top-5 注入 System Prompt。
+
+**为什么是全量重建而不是逐条增量**：不用判重、不用在审核/上下架时挂钩子增删向量，热度排行变动下一次刷新自动生效；代价是新帖子最长延迟一个周期才能被检索到。
 
 ### 6.4 流式 SSE
 `StreamingChatModel.stream()` → Flux<ChatResponse> → 适配器 → Flux<ChatStreamEvent> → SSE。ChatStreamEvent 契约：THINKING/TOOL_CALLING/TOOL_RESULT/MESSAGE/DONE/ERROR + tokenUsage + toolCall + recommendations。

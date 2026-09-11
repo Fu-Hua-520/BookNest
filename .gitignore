@@ -27,6 +27,12 @@ dependency-reduced-pom.xml
 application-local.yml
 application-prod.yml
 
+# ---- 本机数据与工具目录 ----
+# Docker 挂载的数据卷（MySQL/Redis/RabbitMQ 二进制数据，绝不入库）
+booknest_data/
+# AI 助手的本地工作记忆
+.workbuddy/
+
 # ---- 日志 ----
 logs/
 *.log

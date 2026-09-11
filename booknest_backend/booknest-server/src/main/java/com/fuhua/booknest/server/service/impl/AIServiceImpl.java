@@ -5,7 +5,6 @@ import com.fuhua.booknest.pojo.dto.ChatRequestDTO;
 import com.fuhua.booknest.pojo.dto.ChatStreamEvent;
 import com.fuhua.booknest.pojo.entity.AIMessage;
 import com.fuhua.booknest.pojo.vo.RagHit;
-import com.fuhua.booknest.server.agent.BookTools;
 import com.fuhua.booknest.server.service.AIConversationService;
 import com.fuhua.booknest.server.service.AIService;
 import com.fuhua.booknest.server.service.RagRetrievalService;
@@ -32,7 +31,10 @@ import java.util.concurrent.atomic.AtomicReference;
  * AI 流式对话服务实现
  *
  * <p>基于 Spring AI {@link ChatClient} 流式接口，将模型输出适配为前端 SSE 事件流，
- * 支持函数调用（工具调用）与 RAG 检索增强。工具结果（TOOL_RESULT）在 Spring AI
+ * 支持函数调用（工具调用）与 RAG 检索增强。所用 {@link ChatClient} 为
+ * {@link com.fuhua.booknest.server.config.AIConfig} 装配的单例实例（已一次性注册
+ * {@code BookTools}），不可在请求内重复 {@code builder.defaultTools(...)}。
+ * 工具结果（TOOL_RESULT）在 Spring AI
  * 内部工具执行模式下由框架自行消化，不单独推送（见 {@link #toEvents}）。</p>
  */
 @Service
@@ -66,9 +68,7 @@ public class AIServiceImpl implements AIService {
     );
 
     @Autowired
-    private ChatClient.Builder chatClientBuilder;
-    @Autowired
-    private BookTools bookTools;
+    private ChatClient chatClient;
     @Autowired
     private AIConversationService conversationService;
     @Autowired(required = false)
@@ -91,7 +91,7 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public Flux<ChatStreamEvent> streamChatWithRAG(ChatRequestDTO dto) {
-        // RAG 服务条件装配（booknest.zvector.enabled=true 时才存在），不存在则降级为普通对话
+        // RAG 服务条件装配（spring.ai.vectorstore.type=qdrant 时才存在），不存在则降级为普通对话
         if (ragRetrievalService == null) {
             log.info("RAG 检索服务未装配，降级为普通对话");
             return doStream(dto, null);
@@ -142,10 +142,8 @@ public class AIServiceImpl implements AIService {
         // 3. 持久化用户消息
         conversationService.addMessage(buildUserMessage(sessionId, dto.getMessage(), model));
 
-        // 4. 构建带工具调用的 ChatClient
-        ChatClient chatClient = chatClientBuilder.defaultTools(bookTools).build();
-
-        // 5. 发起流式请求（冷流，订阅时才真正调用模型）
+        // 4. 发起流式请求（单例 ChatClient 已在 AIConfig 中一次性注册 BookTools；
+        //    冷流：订阅时才真正调用模型）
         Flux<ChatResponse> responseFlux = chatClient.prompt()
                 .messages(messages)
                 .stream()
@@ -155,11 +153,11 @@ public class AIServiceImpl implements AIService {
         AtomicReference<StringBuilder> textBuilder = new AtomicReference<>(new StringBuilder());
         AtomicReference<Usage> lastUsage = new AtomicReference<>();
 
-        // 6. 适配映射：每个 ChatResponse -> 若干 ChatStreamEvent
+        // 5. 适配映射：每个 ChatResponse -> 若干 ChatStreamEvent
         Flux<ChatStreamEvent> mapped = responseFlux
                 .flatMapIterable(response -> toEvents(response, sessionId, model, textBuilder, lastUsage));
 
-        // 7. 先发 THINKING 事件，流结束后发 DONE 事件，并落库助手消息 + 更新会话元信息
+        // 6. 先发 THINKING 事件，流结束后发 DONE 事件，并落库助手消息 + 更新会话元信息
         return Flux.concat(
                         Flux.just(ChatStreamEvent.thinking(sessionId)),
                         mapped

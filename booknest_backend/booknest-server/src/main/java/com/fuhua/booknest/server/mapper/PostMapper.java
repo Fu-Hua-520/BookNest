@@ -56,6 +56,23 @@ public interface PostMapper {
     void deleteById(@Param("id") String id);
 
     /**
+     * 取「按点赞量排序前 N 条」已发布（status=1）且审核通过（audit_status=1）的帖子 ID 集合。
+     * RAG 召回使用：限定向量检索的合法范围，避免长尾帖子污染答案。
+     *
+     * @param hotTopN 限制条数
+     * @return 帖子 ID 列表（按 like_count desc, publish_time desc）
+     */
+    List<String> listHotApprovedPostIds(@Param("hotTopN") int hotTopN);
+
+    /**
+     * 批量按 ID 查帖子，用于召回后补全 RagHit 的元信息（title、summary 等）。
+     *
+     * @param postIds 帖子 ID 集合
+     * @return 帖子列表
+     */
+    List<Post> selectByIds(@Param("postIds") List<String> postIds);
+
+    /**
      * 浏览量 +1
      * @param id 帖子ID
      */
@@ -113,12 +130,6 @@ public interface PostMapper {
     List<Post> searchByKeyword(@Param("keyword") String keyword, @Param("limit") int limit);
 
     /**
-     * 查询全部已过审帖子（供批量向量化入库）
-     * @return 帖子列表
-     */
-    List<Post> selectAllApproved();
-
-    /**
      * 帖子审核（设置审核状态、审核原因、审核时间）
      * @param id 帖子ID
      * @param auditStatus 审核状态
@@ -143,4 +154,10 @@ public interface PostMapper {
      * @param isTop 是否置顶（0/1）
      */
     void updateIsTop(@Param("id") String id, @Param("isTop") Integer isTop);
+    /**
+     * 统计使用指定分类的帖子数（删除分类前的引用检查）
+     * @param categoryId 分类ID
+     * @return 帖子数
+     */
+    int countByCategoryId(@Param("categoryId") String categoryId);
 }
