@@ -1,6 +1,9 @@
 <script setup>
 /**
  * 用户管理：关键字/状态筛选 + 启用禁用 + 角色调整
+ *
+ * 保留 ID 列：用户 UUID 在排查问题（对日志、对评论作者、对机器人创建者）时
+ * 经常要用，后台原来不显示，只能翻库。现在这一列点一下就能整串复制。
  */
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -86,6 +89,17 @@ function isCurrentAccount(row) {
   return Boolean(adminStore.adminInfo?.id) && String(row.id) === String(adminStore.adminInfo.id)
 }
 
+/** 复制到剪贴板：UUID 太长，页面上只显示前 8 位 */
+async function copyId(row) {
+  const id = String(row.id || '')
+  try {
+    await navigator.clipboard.writeText(id)
+    ElMessage.success('用户 ID 已复制')
+  } catch {
+    ElMessage.info(id)
+  }
+}
+
 onMounted(load)
 </script>
 
@@ -134,6 +148,14 @@ onMounted(load)
         </template>
       </el-table-column>
 
+      <el-table-column label="用户 ID" width="140">
+        <template #default="{ row }">
+          <button type="button" class="uid" :title="`${row.id}（点击复制）`" @click="copyId(row)">
+            {{ String(row.id || '').slice(0, 8) }}…
+          </button>
+        </template>
+      </el-table-column>
+
       <el-table-column label="邮箱" min-width="170">
         <template #default="{ row }">
           <span class="bn-text-sub small">{{ row.email || '—' }}</span>
@@ -169,7 +191,7 @@ onMounted(load)
         </template>
       </el-table-column>
 
-      <el-table-column label="操作" width="170" fixed="right">
+      <el-table-column label="操作" width="180" fixed="right">
         <template #default="{ row }">
           <el-button
             link
@@ -256,6 +278,23 @@ onMounted(load)
   color: var(--bn-text-muted);
   margin-top: 2px;
   word-break: break-all;
+}
+
+/* UUID 很长，列里只放前 8 位 + 省略号，完整值在 title 里，点击直接复制 */
+.uid {
+  border: none;
+  background: #faf8f5;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-family: 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--bn-text-sub);
+  cursor: pointer;
+}
+
+.uid:hover {
+  background: var(--bn-primary-soft);
+  color: var(--bn-primary);
 }
 
 .small {
