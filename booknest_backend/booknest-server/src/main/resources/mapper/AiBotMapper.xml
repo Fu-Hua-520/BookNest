@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.AiBotMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase）。
+         下面的列清单在 insert / update 里手写，就是为了避免 select * 带来的隐性耦合。 -->
+
+    <!-- 可写列清单（供 insert / update 复用） -->
+    <sql id="allColumns">
+        id, owner_id, name, avatar, description, provider, base_url, model, api_key,
+        system_prompt, temperature, max_tokens, audit_status, reject_reason,
+        enabled, reply_count, create_time, update_time
+    </sql>
+
+    <!-- 新增机器人 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.AiBot">
+        insert into booknest.`ai_bot`(<include refid="allColumns"/>)
+        values (#{id}, #{ownerId}, #{name}, #{avatar}, #{description}, #{provider}, #{baseUrl}, #{model},
+                #{apiKey}, #{systemPrompt}, #{temperature}, #{maxTokens}, #{auditStatus}, #{rejectReason},
+                #{enabled}, #{replyCount}, #{createTime}, #{updateTime})
+    </insert>
+
+    <!-- 按 ID 查询 -->
+    <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.AiBot">
+        select * from booknest.`ai_bot` where id = #{id}
+    </select>
+
+    <!-- 按名称查询：名称唯一，且触发时必须精确匹配 -->
+    <select id="selectByName" resultType="com.fuhua.booknest.pojo.entity.AiBot">
+        select * from booknest.`ai_bot` where name = #{name} limit 1
+    </select>
+
+    <!-- 我的机器人：待审 / 已通过 / 已驳回都返回，前端分状态展示 -->
+    <select id="listByOwner" resultType="com.fuhua.booknest.pojo.entity.AiBot">
+        select * from booknest.`ai_bot`
+        where owner_id = #{ownerId}
+        order by create_time desc
+    </select>
+
+    <!-- 全站可用：已过审且创建者没停用；触发索引与 @ 选择器都用它 -->
+    <select id="listEnabledApproved" resultType="com.fuhua.booknest.pojo.entity.AiBot">
+        select * from booknest.`ai_bot`
+        where audit_status = 1 and enabled = 1
+        order by reply_count desc, create_time asc
+    </select>
+
+    <!-- 管理端审核列表：auditStatus 为 null 时查全部 -->
+    <select id="listForAudit" resultType="com.fuhua.booknest.pojo.entity.AiBot">
+        select * from booknest.`ai_bot`
+        <where>
+            <if test="auditStatus != null">
+                audit_status = #{auditStatus}
+            </if>
+        </where>
+        order by create_time desc
+    </select>
+
+    <!-- 批量按 ID 查询（触发后取配置，避免逐条 selectById） -->
+    <select id="selectByIds" resultType="com.fuhua.booknest.pojo.entity.AiBot">
+        select * from booknest.`ai_bot`
+        where id in
+        <foreach collection="ids" item="bid" open="(" separator="," close=")">
+            #{bid}
+        </foreach>
+    </select>
+
+    <!-- 单用户机器人数量（上限校验） -->
+    <select id="countByOwner" resultType="int">
+        select count(*) from booknest.`ai_bot` where owner_id = #{ownerId}
+    </select>
+
+    <!--
+        更新机器人：
+        api_key 刻意用 <if> 单独判断 —— 前端不回传明文，编辑时留空表示「沿用原 Key」，
+        如果这里无条件覆盖，一次改简介就会把 Key 清空。
+    -->
+    <update id="update" parameterType="com.fuhua.booknest.pojo.entity.AiBot">
+        update booknest.`ai_bot`
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            <if test="description != null">description = #{description},</if>
+            <if test="provider != null">provider = #{provider},</if>
+            <if test="baseUrl != null">base_url = #{baseUrl},</if>
+            <if test="model != null">model = #{model},</if>
+            <if test="apiKey != null">api_key = #{apiKey},</if>
+            <if test="systemPrompt != null">system_prompt = #{systemPrompt},</if>
+            <if test="temperature != null">temperature = #{temperature},</if>
+            <if test="maxTokens != null">max_tokens = #{maxTokens},</if>
+            <if test="auditStatus != null">audit_status = #{auditStatus},</if>
+            reject_reason = #{rejectReason},
+            <if test="enabled != null">enabled = #{enabled},</if>
+            update_time = #{updateTime}
+        </set>
+        where id = #{id}
+    </update>
+
+    <!-- 删除机器人（其历史回复的清理由 Service 负责） -->
+    <delete id="deleteById">
+        delete from booknest.`ai_bot` where id = #{id}
+    </delete>
+
+    <!-- 审核：通过时把 reject_reason 一并清空，避免驳回理由残留 -->
+    <update id="audit">
+        update booknest.`ai_bot`
+        set audit_status = #{auditStatus},
+            reject_reason = #{rejectReason},
+            update_time = now()
+        where id = #{id}
+    </update>
+
+    <update id="updateEnabled">
+        update booknest.`ai_bot` set enabled = #{enabled}, update_time = now() where id = #{id}
+    </update>
+
+    <update id="incrementReplyCount">
+        update booknest.`ai_bot` set reply_count = reply_count + 1 where id = #{id}
+    </update>
+
+</mapper>
