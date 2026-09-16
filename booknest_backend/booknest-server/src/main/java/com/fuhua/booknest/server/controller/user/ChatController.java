@@ -5,7 +5,7 @@ import com.fuhua.booknest.common.result.Result;
 import com.fuhua.booknest.pojo.vo.ChatConversationVO;
 import com.fuhua.booknest.pojo.vo.ChatMsgVO;
 import com.fuhua.booknest.server.service.ChatService;
-import com.fuhua.booknest.server.websocket.ChatWebSocketHandler;
+import com.fuhua.booknest.server.websocket.WsSessionRegistry;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +22,8 @@ public class ChatController {
 
     @Autowired
     private ChatService chatService;
+    @Autowired
+    private WsSessionRegistry wsSessionRegistry;
 
     /**
      * 查询会话列表
@@ -83,12 +85,16 @@ public class ChatController {
 
     /**
      * 查询用户是否在线
+     *
+     * <p>在线态已改为跨实例判断（Redis ZSET），不再只看本进程的会话表 ——
+     * 否则多实例部署时，连在别的实例上的用户会被报成离线。</p>
+     *
      * @param userId 用户ID
      * @return 是否在线
      */
     @GetMapping("/user/{userId}/online")
     @Operation(summary = "查询用户是否在线")
     public Result<Boolean> isOnline(@PathVariable String userId) {
-        return Result.success(ChatWebSocketHandler.isUserOnline(userId));
+        return Result.success(wsSessionRegistry.isUserOnline(userId));
     }
 }
