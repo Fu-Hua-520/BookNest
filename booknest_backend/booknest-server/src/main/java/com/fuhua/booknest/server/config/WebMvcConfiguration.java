@@ -48,10 +48,15 @@ public class WebMvcConfiguration implements WebMvcConfigurer {
         // 注册用户端拦截器
         registry.addInterceptor(jwtTokenUserInterceptor)
                 .addPathPatterns("/user/**")
-                .addPathPatterns("/ai/**")
                 .addPathPatterns("/post/**")
                 .addPathPatterns("/booklist/**")
                 .addPathPatterns("/category/**")
+                // 书吧社区化（关注 / 等级 / 称号 / 吧务）：全部依赖当前登录用户，
+                // 单独挂 /bar 而不是 /category，避免被「公开只读放行」规则免掉令牌
+                .addPathPatterns("/bar/**")
+                // 评论区 AI 机器人：创建 / 编辑 / 删除都要知道「当前是谁」，
+                // 同样单独挂 /bot，不走 /category 的公开只读放行
+                .addPathPatterns("/bot/**")
                 .addPathPatterns("/tag/**")
                 .addPathPatterns("/follow/**")
                 .addPathPatterns("/notification/**")
