@@ -1,8 +1,15 @@
 <script setup>
 /**
  * 帖子卡片：首页/分类/标签/搜索/个人主页共用
+ *
+ * 点击行为说明（曾出现的 bug）：
+ * 早期只有「标题 / 封面 / 作者 / 分类 / 标签」是 <a>，卡片主体区域
+ * （摘要文字、底部阅读数·点赞数·评论数、卡片右侧留白）没有任何点击处理器，
+ * 点上去既不跳转也不发请求，表现就是「点帖子莫名其妙没反应，F12 里一条请求都没有」。
+ * 现在整张卡片都是点击热区，内部已有的链接/按钮仍然各自生效。
  */
 import { computed } from 'vue'
+import { useRouter } from 'vue-router'
 import BnAvatar from './BnAvatar.vue'
 import { formatCount, fromNow } from '@/utils/format'
 
@@ -12,21 +19,60 @@ const props = defineProps({
   showCover: { type: Boolean, default: true }
 })
 
+const router = useRouter()
+
 const post = computed(() => props.post || {})
-const detailLink = computed(() => `/post/${post.value.id}`)
+const detailLink = computed(() => (post.value.id ? `/post/${post.value.id}` : ''))
 const authorLink = computed(() => (post.value.authorId ? `/user/${post.value.authorId}` : ''))
-const categoryLink = computed(() => (post.value.categoryId ? `/category/${post.value.categoryId}` : ''))
+
+/**
+ * 分类已改造成贴吧式的「书吧」，所以这里跳转的是书吧页 /bars/:id。
+ * 老路由 /category/:id 仍保留重定向（见 router/index.js），外部旧链接不会 404。
+ */
+const categoryLink = computed(() => (post.value.categoryId ? `/bars/${post.value.categoryId}` : ''))
+
+/** 求助贴标记：后端 post_type 为 HELP 时在卡片上加醒目角标 */
+const isHelp = computed(() => String(post.value.postType || '').toUpperCase() === 'HELP')
+
 const cover = computed(() => post.value.coverImage || '')
 const tags = computed(() => (post.value.tags || []).slice(0, 4))
+
+/** 卡片整体可点：内部已有链接/按钮时放行，其余情况走详情页 */
+function goDetail(event) {
+  if (!detailLink.value) return
+  // 目标是卡片内已有的 <a>/<button>，交给它们自己的默认行为
+  if (event.target instanceof Element && event.target.closest('a, button')) return
+  // 按住修饰键或中键：沿用浏览器「新标签页打开」的直觉
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button === 1) {
+    window.open(detailLink.value, '_blank')
+    return
+  }
+  router.push(detailLink.value)
+}
+
+/** 键盘可达：卡片可聚焦，Enter 进入详情 */
+function goDetailByKey(event) {
+  if (event.key !== 'Enter' || !detailLink.value) return
+  event.preventDefault()
+  router.push(detailLink.value)
+}
 </script>
 
 <template>
-  <article class="bn-card bn-card-hover post-card">
+  <article
+    class="bn-card bn-card-hover post-card"
+    :class="{ clickable: detailLink }"
+    :tabindex="detailLink ? 0 : undefined"
+    :aria-label="detailLink ? `查看帖子：${post.title || ''}` : undefined"
+    @click="goDetail"
+    @keydown="goDetailByKey"
+  >
     <div class="post-body">
       <div class="post-main">
-        <!-- 置顶与分类 -->
+        <!-- 置顶 / 求助 / 书吧 / 关联书籍 -->
         <div class="post-flags">
           <el-tag v-if="post.isTop === 1" type="danger" size="small" effect="plain">置顶</el-tag>
+          <el-tag v-if="isHelp" type="warning" size="small" effect="dark">求助</el-tag>
           <router-link v-if="categoryLink" :to="categoryLink" class="bn-tag">
             {{ post.categoryName || '未分类' }}
           </router-link>
@@ -74,6 +120,16 @@ const tags = computed(() => (post.value.tags || []).slice(0, 4))
 </template>
 
 <style scoped>
+.post-card.clickable {
+  cursor: pointer;
+}
+
+/* 键盘聚焦时给出可见反馈，鼠标点击不留描边 */
+.post-card.clickable:focus-visible {
+  outline: 2px solid var(--bn-primary);
+  outline-offset: 2px;
+}
+
 .post-body {
   display: flex;
   gap: 16px;

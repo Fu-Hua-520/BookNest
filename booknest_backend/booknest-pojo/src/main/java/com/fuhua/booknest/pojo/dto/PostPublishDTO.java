@@ -36,4 +36,7 @@ public class PostPublishDTO implements Serializable {
 
     // 标签ID列表（可空）
     private List<String> tagIds;
+
+    // 帖子类型：NORMAL-普通（默认） HELP-求助贴（可空，非法值回落 NORMAL）
+    private String postType;
 }

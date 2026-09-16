@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.BarLevelTitleMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true -->
+
+    <!-- 设置称号：同一 (bar_id, level) 重复设置视为覆盖，不报错。
+         依赖 uk_bar_level 唯一索引，应用层不需要先查后判。 -->
+    <insert id="upsert" parameterType="com.fuhua.booknest.pojo.entity.BarLevelTitle">
+        insert into booknest.`bar_level_title`(id, bar_id, level, title, create_time, update_time)
+        values (#{id}, #{barId}, #{level}, #{title}, #{createTime}, #{updateTime})
+        on duplicate key update
+            title = #{title},
+            update_time = #{updateTime}
+    </insert>
+
+    <!-- 清空某吧称号：吧主整批重设前先清，去掉的等级要真的消失 -->
+    <delete id="deleteByBarId">
+        delete from booknest.`bar_level_title` where bar_id = #{barId}
+    </delete>
+
+    <!-- 某吧全部称号 -->
+    <select id="listByBar" resultType="com.fuhua.booknest.pojo.entity.BarLevelTitle">
+        select * from booknest.`bar_level_title`
+        where bar_id = #{barId}
+        order by level asc
+    </select>
+
+    <!-- 某吧某等级的称号名 -->
+    <select id="selectTitle" resultType="java.lang.String">
+        select title from booknest.`bar_level_title`
+        where bar_id = #{barId} and level = #{level}
+    </select>
+
+</mapper>

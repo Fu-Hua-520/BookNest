@@ -6,34 +6,99 @@
     <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
          数据库列（snake_case）自动映射到实体属性（camelCase） -->
 
-    <!-- 插入新分类 -->
+    <!-- 插入新书吧 -->
     <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Category">
-        insert into booknest.`category`(id, name, parent_id, sort_order, description, status)
-        values (#{id}, #{name}, #{parentId}, #{sortOrder}, #{description}, #{status})
+        insert into booknest.`category`(id, name, icon, parent_id, sort_order, description, status,
+                                        owner_id, audit_status, reject_reason, create_time)
+        values (#{id}, #{name}, #{icon}, #{parentId}, #{sortOrder}, #{description}, #{status},
+                #{ownerId}, #{auditStatus}, #{rejectReason}, #{createTime})
     </insert>
 
-    <!-- 根据分类ID查询分类 -->
+    <!-- 根据书吧ID查询 -->
     <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Category">
         select * from booknest.`category` where id = #{id}
     </select>
 
-    <!-- 查询全部分类 -->
+    <!-- 查询全部书吧。书吧已取消分级，parent_id 恒为 NULL，按排序号 + 吧名排即可。
+         顺带 left join 出吧主昵称/头像：书吧列表每一行都要显示吧主，不在这里带出，
+         Service 就只能「循环里逐条 getUserById」补（广场、热门榜、搜索、申请列表全中招）。
+         join 走 user 主键，代价可忽略；带出的两列映射到 Category.ownerName / ownerAvatar。 -->
     <select id="listAll" resultType="com.fuhua.booknest.pojo.entity.Category">
-        select * from booknest.`category` order by parent_id, sort_order asc
+        select c.*, u.username as owner_name, u.avatar as owner_avatar
+        from booknest.`category` c
+        left join booknest.`user` u on u.id = c.owner_id
+        order by c.sort_order asc, c.name asc
     </select>
 
-    <!-- 更新分类信息 -->
+    <!-- 按ID批量查询分类（帖子列表组装用；一次 in 查询替代循环 selectById） -->
+    <select id="selectByIds" resultType="com.fuhua.booknest.pojo.entity.Category">
+        select * from booknest.`category`
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 查询我申请过的书吧（含待审/被驳回，用于个人申请记录） -->
+    <!-- 查询某用户名下的书吧（「我的申请」）：同样带出吧主昵称/头像，
+         与 listAll 保持同一套列，避免同一个 VO 出现两条组装路径 -->
+    <select id="listByOwnerId" resultType="com.fuhua.booknest.pojo.entity.Category">
+        select c.*, u.username as owner_name, u.avatar as owner_avatar
+        from booknest.`category` c
+        left join booknest.`user` u on u.id = c.owner_id
+        where c.owner_id = #{ownerId}
+        order by c.create_time desc
+    </select>
+
+    <!-- 更新书吧信息。
+         用 set + if 做选择性更新：管理端编辑书吧时构造的实体并不携带
+         owner_id / audit_status / reject_reason，若无条件写入会把吧主和审核态清空。 -->
     <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Category">
         update booknest.`category`
-        set name = #{name},
-            parent_id = #{parentId},
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="icon != null">icon = #{icon},</if>
+            parent_id = NULL,
             sort_order = #{sortOrder},
-            description = #{description},
-            status = #{status}
+            <if test="description != null">description = #{description},</if>
+            <if test="status != null">status = #{status},</if>
+            <if test="ownerId != null">owner_id = #{ownerId},</if>
+            <if test="auditStatus != null">audit_status = #{auditStatus},</if>
+            <if test="rejectReason != null">reject_reason = #{rejectReason},</if>
+        </set>
         where id = #{id}
     </update>
 
-    <!-- 根据分类ID删除分类 -->
+    <!-- 审核书吧创建申请：通过或驳回，并把驳回原因记下来。
+         通过时顺带把 status 打开（申请落库时是禁用的，防止绕过审批发帖）。 -->
+    <update id="auditBar">
+        update booknest.`category`
+        set audit_status = #{auditStatus},
+            reject_reason = #{rejectReason},
+            status = case when #{auditStatus} = 1 then 1 else status end,
+            update_time = now()
+        where id = #{id}
+    </update>
+
+    <!-- 每个吧下「已发布 + 已过审」的帖子数，一次 group by 拿全量 -->
+    <select id="countPostsGroupByCategory" resultType="java.util.Map">
+        select category_id as categoryId, count(*) as postCount
+        from booknest.`post`
+        where category_id is not null
+          and audit_status = 1
+          and status = 1
+        group by category_id
+    </select>
+
+    <!-- 只更新吧主：审批通过时管理员可指定 / 变更吧主。
+         独立成句而不是塞进 auditBar —— 驳回时不该有人去动 owner_id。 -->
+    <update id="updateOwner">
+        update booknest.`category`
+        set owner_id = #{ownerId}, update_time = now()
+        where id = #{id}
+    </update>
+
+    <!-- 根据书吧ID删除 -->
     <delete id="deleteById">
         delete from booknest.`category` where id = #{id}
     </delete>

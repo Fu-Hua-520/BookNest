@@ -1,92 +1,87 @@
 <script setup>
 /**
- * 首页侧栏：分类树、热门标签、AI 助手入口
+ * 首页侧栏：热门书吧
+ *
+ * 「我关注的吧」不在这里 —— 关注关系属于长期导航，已经移到左侧可收回主侧栏
+ * （AppSidebar），换成书单 / 个人主页等页面时也还在，不会跟着首页内容一起消失。
+ * 这里只留「热门书吧」这类跟着首页走的推荐内容。
+ *
+ * 热门书吧按吧内成员数取前 20，后端缓存约一天、隔天自动重算，人人可见（游客也看得到）。
+ *
+ * 侧栏不放「热门标签」—— 首页主栏已经有一整块热门标签区，
+ * 两处都放正是之前被抱怨过的「同一个入口出现两次」。
+ *
+ * 这里也不放 AI 机器人入口：机器人只在评论区被 @ 时才登场，
+ * 首页不用给它一个常驻卡片，书架位子留给内容本身。
+ *
+ * 每个吧前面是图标（icon），没上传图标时用吧名首字兜底。
  */
-import { computed } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { useTaxonomyStore } from '@/stores/taxonomy'
-import { useUserStore } from '@/stores/user'
+import * as taxonomyApi from '@/api/taxonomy'
 
 const route = useRoute()
-const taxonomyStore = useTaxonomyStore()
-const userStore = useUserStore()
 
-const categories = computed(() => taxonomyStore.categoryTree || [])
-const tags = computed(() => taxonomyStore.hotTags || [])
+/* ---------------- 热门书吧（Top20，后端隔天刷新） ---------------- */
+const hotBars = ref([])
+const hotBarsLoading = ref(true)
 
-const activeCategoryId = computed(() => (route.name === 'category' ? String(route.params.id) : ''))
-const activeTagId = computed(() => (route.name === 'tag' ? String(route.params.id) : ''))
+async function loadHotBars() {
+  hotBarsLoading.value = true
+  try {
+    hotBars.value = (await taxonomyApi.listHotBars()) || []
+  } catch {
+    hotBars.value = []
+  } finally {
+    hotBarsLoading.value = false
+  }
+}
+
+/** 路由名是 bar（/bars/:id），不是 category */
+const activeBarId = computed(() => (route.name === 'bar' ? String(route.params.id) : ''))
+
+/** 无图标时用吧名首字兜底 */
+function initial(name) {
+  return (name || '吧').slice(0, 1)
+}
+
+onMounted(loadHotBars)
 </script>
 
 <template>
   <aside class="sidebar">
-    <!-- 分类 -->
+    <!-- 热门书吧：按成员数前 20（后端隔天刷新一次） -->
     <div class="bn-card side-block">
       <div class="side-head">
-        <h3>书籍分类</h3>
-        <router-link to="/search" class="side-more">全部</router-link>
+        <h3>热门书吧</h3>
+        <router-link to="/bars" class="side-more">全部书吧</router-link>
       </div>
-      <div v-if="categories.length" class="category-list">
-        <div v-for="parent in categories" :key="parent.id" class="category-group">
-          <router-link
-            :to="`/category/${parent.id}`"
-            :class="['category-parent', { active: activeCategoryId === String(parent.id) }]"
-          >
-            {{ parent.name }}
-          </router-link>
-          <div v-if="parent.children?.length" class="category-children">
-            <router-link
-              v-for="child in parent.children"
-              :key="child.id"
-              :to="`/category/${child.id}`"
-              :class="['category-child', { active: activeCategoryId === String(child.id) }]"
-            >
-              {{ child.name }}
-            </router-link>
-          </div>
-        </div>
-      </div>
-      <el-skeleton v-else-if="taxonomyStore.loading" :rows="4" animated />
-      <p v-else class="side-empty">暂无分类</p>
-    </div>
 
-    <!-- 热门标签 -->
-    <div class="bn-card side-block">
-      <div class="side-head">
-        <h3>热门标签</h3>
-      </div>
-      <div v-if="tags.length" class="tag-cloud">
+      <div v-if="hotBars.length" class="bar-list">
         <router-link
-          v-for="tag in tags"
-          :key="tag.id"
-          :to="`/tag/${tag.id}`"
-          :class="['tag-chip', { active: activeTagId === String(tag.id) }]"
+          v-for="(bar, index) in hotBars"
+          :key="bar.id"
+          :to="`/bars/${bar.id}`"
+          :class="['bar-item', { active: activeBarId === String(bar.id) }]"
         >
-          #{{ tag.name }}
-          <span v-if="tag.useCount" class="tag-count">{{ tag.useCount }}</span>
+          <span class="hot-rank" :class="{ top: index < 3 }">{{ index + 1 }}</span>
+          <img v-if="bar.icon" :src="bar.icon" :alt="bar.name" class="bar-icon" />
+          <span v-else class="bar-icon bar-icon-text">{{ initial(bar.name) }}</span>
+          <span class="bar-name bn-ellipsis-1">{{ bar.name }}</span>
+          <span class="bar-count">{{ bar.memberCount || 0 }} 人</span>
         </router-link>
       </div>
-      <p v-else class="side-empty">暂无标签</p>
+      <el-skeleton v-else-if="hotBarsLoading" :rows="4" animated />
+      <p v-else class="side-empty">
+        还没有书吧，<router-link to="/bars" class="side-link">去申请创建</router-link>
+      </p>
     </div>
 
-    <!-- AI 助手 -->
-    <div class="bn-card ai-block">
-      <div class="ai-icon">
-        <el-icon :size="20"><MagicStick /></el-icon>
-      </div>
-      <p class="ai-title">BookNest AI 助手</p>
-      <p class="ai-desc">找书、查帖、总结书评，基于论坛内容检索回答</p>
-      <router-link to="/assistant" class="ai-btn">
-        {{ userStore.isLoggedIn ? '开始对话' : '登录后使用' }}
-      </router-link>
-    </div>
   </aside>
 </template>
 
 <style scoped>
 .sidebar {
-  position: sticky;
-  top: 78px;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -116,74 +111,77 @@ const activeTagId = computed(() => (route.name === 'tag' ? String(route.params.i
   color: var(--bn-primary);
 }
 
-.category-group + .category-group {
-  margin-top: 9px;
-  padding-top: 9px;
-  border-top: 1px dashed var(--bn-border);
-}
-
-.category-parent {
-  display: inline-block;
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--bn-text);
-  padding: 2px 0;
-}
-
-.category-parent:hover,
-.category-parent.active {
-  color: var(--bn-primary);
-}
-
-.category-children {
+/* Top20 一屏放不下，超出后自身滚动，别把侧栏拉得过长 */
+.bar-list {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 340px;
+  overflow-y: auto;
+  margin: -3px -4px;
+  padding: 3px 4px;
 }
 
-.category-child {
-  font-size: 12.5px;
+.bar-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 8px;
+  font-size: 13.5px;
   color: var(--bn-text-sub);
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: #f7f4f0;
   transition: all 0.15s ease;
 }
 
-.category-child:hover,
-.category-child.active {
+.bar-item:hover,
+.bar-item.active {
   background: var(--bn-primary-soft);
   color: var(--bn-primary);
 }
 
-.tag-cloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 7px;
+/* 热榜序号：前三名高亮，给「热门」一个直观的视觉梯度 */
+.hot-rank {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bn-text-muted);
+  font-style: italic;
 }
 
-.tag-chip {
+.hot-rank.top {
+  color: #d4733f;
+}
+
+.bar-icon {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  object-fit: cover;
+  background: #efe9e2;
+}
+
+.bar-icon-text {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: 12.5px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  background: #f7f4f0;
-  color: var(--bn-text-sub);
-  transition: all 0.15s ease;
-}
-
-.tag-chip:hover,
-.tag-chip.active {
-  background: var(--bn-primary-soft);
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 700;
   color: var(--bn-primary);
+  background: var(--bn-primary-soft);
 }
 
-.tag-count {
-  font-size: 10.5px;
-  opacity: 0.7;
+.bar-name {
+  min-width: 0;
+  flex: 1;
+}
+
+.bar-count {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--bn-text-muted);
 }
 
 .side-empty {
@@ -192,48 +190,7 @@ const activeTagId = computed(() => (route.name === 'tag' ? String(route.params.i
   padding: 8px 0;
 }
 
-.ai-block {
-  background: linear-gradient(150deg, #fdf8f2 0%, #f6ece0 100%);
-  border-color: #ecdfd0;
-  text-align: center;
-}
-
-.ai-icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  background: #fff;
+.side-link {
   color: var(--bn-primary);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 9px;
-  box-shadow: 0 2px 8px rgba(139, 94, 60, 0.12);
-}
-
-.ai-title {
-  font-size: 14.5px;
-  font-weight: 600;
-}
-
-.ai-desc {
-  font-size: 12.5px;
-  color: var(--bn-text-sub);
-  line-height: 1.6;
-  margin: 5px 0 11px;
-}
-
-.ai-btn {
-  display: block;
-  padding: 7px 0;
-  border-radius: 8px;
-  background: var(--bn-primary);
-  color: #fff;
-  font-size: 13.5px;
-  transition: background 0.15s ease;
-}
-
-.ai-btn:hover {
-  background: var(--bn-primary-light);
 }
 </style>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.BarMemberMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true -->
+
+    <!-- 入吧（关注） -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.BarMember">
+        insert into booknest.`bar_member`(id, bar_id, user_id, exp, level,
+                                          daily_exp, daily_date, create_time, update_time)
+        values (#{id}, #{barId}, #{userId}, #{exp}, #{level},
+                #{dailyExp}, #{dailyDate}, #{createTime}, #{updateTime})
+    </insert>
+
+    <!-- 退吧（取关） -->
+    <delete id="deleteByBarAndUser">
+        delete from booknest.`bar_member`
+        where bar_id = #{barId} and user_id = #{userId}
+    </delete>
+
+    <!-- 查成员记录 -->
+    <select id="selectByBarAndUser" resultType="com.fuhua.booknest.pojo.entity.BarMember">
+        select * from booknest.`bar_member`
+        where bar_id = #{barId} and user_id = #{userId}
+    </select>
+
+    <!-- ============================================================
+         等级快照：由 exp 派生，必须与 BarConstant.LEVEL_THRESHOLDS 一致：
+         {0, 50, 150, 300, 600, 1000, 1500, 2500, 4000, 6000}，下标 0 = Lv.1，上限 MAX_LEVEL = 10。
+         ⚠️ 改 Java 那边的阈值时这里要同步改。
+         放在 SQL 而不是 Java 里算，是为了让 exp 与 level 在同一条 UPDATE 中写下：
+         若拆成两次写，并发下会出现「exp 已是新值、level 还是旧值」的窗口。
+         ============================================================ -->
+    <sql id="levelFromExp">
+        case when exp &gt;= 6000 then 10
+             when exp &gt;= 4000 then 9
+             when exp &gt;= 2500 then 8
+             when exp &gt;= 1500 then 7
+             when exp &gt;= 1000 then 6
+             when exp &gt;= 600 then 5
+             when exp &gt;= 300 then 4
+             when exp &gt;= 150 then 3
+             when exp &gt;= 50 then 2
+             else 1 end
+    </sql>
+
+    <!-- 原子加分：额度裁剪 + 累加经验 + 派生等级，一条语句完成。
+         SET 的求值顺序 = 书写顺序（MySQL：从左到右，后面的表达式看到前面已更新后的值），
+         因此三条赋值互不打架：
+           exp      ← 用「旧的 daily_exp」算本次实得增量
+           daily_exp← 用「旧的 daily_exp」算新的当日累计
+           level    ← 用「新的 exp」派生
+         base = case when daily_date = #{today} then daily_exp else 0 end（跨天即重置额度）。
+         返回 0 行有两种可能：不是本吧成员（无行），或本次无任何列发生变化（额度已用尽）。
+         因此调用方不该把 0 行当成「不是成员」来记日志。 -->
+    <update id="grantExpWithinLimit">
+        update booknest.`bar_member`
+        set exp = exp + least(#{amount},
+                              greatest(0, #{limit} - (case when daily_date = #{today} then daily_exp else 0 end))),
+            daily_exp = (case when daily_date = #{today} then daily_exp else 0 end)
+                        + least(#{amount},
+                                greatest(0, #{limit} - (case when daily_date = #{today} then daily_exp else 0 end))),
+            daily_date = #{today},
+            level = <include refid="levelFromExp"/>,
+            update_time = now()
+        where bar_id = #{barId} and user_id = #{userId}
+    </update>
+
+    <!-- 原子扣回（取消点赞）：经验不低于 0；不返还当日额度（防「点赞→取消→再点赞」刷经验），
+         但日期照旧刷成今天，跨天时当日经验归零 —— 与原逻辑一致。 -->
+    <update id="deductExp">
+        update booknest.`bar_member`
+        set exp = greatest(0, exp + #{amount}),
+            daily_exp = case when daily_date = #{today} then daily_exp else 0 end,
+            daily_date = #{today},
+            level = <include refid="levelFromExp"/>,
+            update_time = now()
+        where bar_id = #{barId} and user_id = #{userId}
+    </update>
+
+    <!-- 等级榜：按经验降序 -->
+    <select id="listTopByExp" resultType="com.fuhua.booknest.pojo.entity.BarMember">
+        select * from booknest.`bar_member`
+        where bar_id = #{barId}
+        order by exp desc, create_time asc
+        limit #{limit}
+    </select>
+
+    <!-- 关注数 -->
+    <select id="countByBar" resultType="int">
+        select count(*) from booknest.`bar_member` where bar_id = #{barId}
+    </select>
+
+    <!-- 我关注的书吧ID -->
+    <select id="listBarIdsByUser" resultType="java.lang.String">
+        select bar_id from booknest.`bar_member`
+        where user_id = #{userId}
+        order by create_time desc
+    </select>
+
+    <!-- 我关注的、当前可见的书吧：join category 带出完整信息，
+         只认「已过审 + 未禁用」—— 被禁用/驳回的吧即使还在关注列表里也不展示。
+         再 left join user 带出吧主昵称/头像（映射到 Category.ownerName / ownerAvatar），
+         免得 Service 层为每行各查一次用户。 -->
+    <select id="listFollowedBars" resultType="com.fuhua.booknest.pojo.entity.Category">
+        select c.*, u.username as owner_name, u.avatar as owner_avatar
+        from booknest.`bar_member` m
+        inner join booknest.`category` c on c.id = m.bar_id
+        left join booknest.`user` u on u.id = c.owner_id
+        where m.user_id = #{userId}
+          and c.audit_status = 1
+          and c.status = 1
+        order by m.create_time desc
+    </select>
+
+    <!-- 每个吧的成员数，一次 group by 拿全量（「热门书吧」按这个排序） -->
+    <select id="countGroupByBar" resultType="java.util.Map">
+        select bar_id as barId, count(*) as memberCount
+        from booknest.`bar_member`
+        group by bar_id
+    </select>
+
+    <!-- 清理某吧的全部成员 -->
+    <delete id="deleteByBarId">
+        delete from booknest.`bar_member` where bar_id = #{barId}
+    </delete>
+
+</mapper>

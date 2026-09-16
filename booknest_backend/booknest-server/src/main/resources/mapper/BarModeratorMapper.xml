@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.BarModeratorMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true -->
+
+    <!-- 任命管理员 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.BarModerator">
+        insert into booknest.`bar_moderator`(id, bar_id, user_id, create_time)
+        values (#{id}, #{barId}, #{userId}, #{createTime})
+    </insert>
+
+    <!-- 撤销管理员 -->
+    <delete id="deleteByBarAndUser">
+        delete from booknest.`bar_moderator`
+        where bar_id = #{barId} and user_id = #{userId}
+    </delete>
+
+    <!-- 是否管理员 -->
+    <select id="countByBarAndUser" resultType="int">
+        select count(*) from booknest.`bar_moderator`
+        where bar_id = #{barId} and user_id = #{userId}
+    </select>
+
+    <!-- 某吧全部管理员用户ID -->
+    <select id="listUserIdsByBar" resultType="java.lang.String">
+        select user_id from booknest.`bar_moderator`
+        where bar_id = #{barId}
+        order by create_time asc
+    </select>
+
+    <!-- 清理某吧的全部管理员 -->
+    <delete id="deleteByBarId">
+        delete from booknest.`bar_moderator` where bar_id = #{barId}
+    </delete>
+
+</mapper>
