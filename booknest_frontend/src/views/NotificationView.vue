@@ -1,7 +1,8 @@
 <script setup>
 /**
  * 通知中心：列表 / 已读 / 全部已读 / 删除
- * 通知类型：LIKE 点赞、COMMENT 评论、FOLLOW 关注、SYSTEM 系统
+ * 通知类型：LIKE 点赞、COMMENT 评论、REPLY 回复评论、FOLLOW 关注、
+ *          AI_REPLY 评论区机器人回复、SYSTEM 系统
  */
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -23,8 +24,10 @@ const marking = ref(false)
 const TYPE_META = {
   LIKE: { label: '点赞', icon: 'Star', color: '#c8783c' },
   COMMENT: { label: '评论', icon: 'ChatDotRound', color: '#4a7ba7' },
+  REPLY: { label: '回复', icon: 'ChatLineSquare', color: '#6a5aa8' },
   FOLLOW: { label: '关注', icon: 'User', color: '#4a9c6d' },
-  AI: { label: 'AI', icon: 'MagicStick', color: '#8b5e3c' },
+  // 评论区 @ 了 AI 机器人，机器人回复了你
+  AI_REPLY: { label: 'AI 回复', icon: 'MagicStick', color: '#8b5e3c' },
   SYSTEM: { label: '系统', icon: 'Bell', color: '#8a7c6d' }
 }
 
@@ -59,14 +62,19 @@ async function onRead(item) {
   badgeStore.refresh()
 }
 
-/** 点击通知：标记已读并尝试跳转到来源内容 */
+/** 点击通知：标记已读并尝试跳转到来源内容（带 anchorId 时定位到那条评论） */
 async function onOpen(item) {
   await onRead(item)
   if (!item.sourceId) return
   if (item.type === 'FOLLOW') {
     router.push(`/user/${item.sourceId}`)
-  } else if (item.type === 'LIKE' || item.type === 'COMMENT') {
-    router.push(`/post/${item.sourceId}`)
+    return
+  }
+  if (item.type === 'LIKE' || item.type === 'COMMENT' || item.type === 'REPLY' || item.type === 'AI_REPLY') {
+    router.push({
+      path: `/post/${item.sourceId}`,
+      query: item.anchorId ? { comment: item.anchorId } : {}
+    })
   }
 }
 

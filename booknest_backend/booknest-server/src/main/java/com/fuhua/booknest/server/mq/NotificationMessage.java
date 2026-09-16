@@ -16,4 +16,6 @@ public class NotificationMessage {
     private String type;
     private String content;
     private String sourceId;
+    // 锚点ID（可为空）：REPLY 传评论 ID，前端据此滚到那条评论
+    private String anchorId;
 }

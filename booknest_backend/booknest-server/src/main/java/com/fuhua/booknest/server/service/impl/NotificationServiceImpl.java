@@ -75,6 +75,7 @@ public class NotificationServiceImpl implements NotificationService {
                 .type(notification.getType())
                 .content(notification.getContent())
                 .sourceId(notification.getSourceId())
+                .anchorId(notification.getAnchorId())
                 .isRead(notification.getIsRead())
                 .createTime(notification.getCreateTime())
                 .build();

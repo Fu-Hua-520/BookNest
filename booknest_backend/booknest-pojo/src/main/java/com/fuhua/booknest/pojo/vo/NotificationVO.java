@@ -22,6 +22,8 @@ public class NotificationVO implements Serializable {
     private String type;
     private String content;
     private String sourceId;
+    // 锚点ID：REPLY 存评论 ID，前端打开帖子后滚动并高亮该评论
+    private String anchorId;
     private Integer isRead;
     private LocalDateTime createTime;
 }

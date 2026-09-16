@@ -16,6 +16,18 @@ public interface NotificationMapper {
     void insert(Notification notification);
 
     /**
+     * 幂等插入通知：撞 {@code uk_notification_dedup} 唯一键时返回 0 而不抛异常。
+     *
+     * <p>MQ 消费语义是 at-least-once：消费成功但 ack 丢失、或消费中途抛异常触发重试，
+     * 同一条消息都会被再投一次。用 {@code insert ignore} 把「重复投递」变成一次
+     * 影响行数为 0 的正常返回，消费者才能把重复消息当成「已经投过了」而不是错误。</p>
+     *
+     * @param notification 通知信息
+     * @return 实际插入行数（1 = 首次插入，0 = 重复消息已忽略）
+     */
+    int insertIgnore(Notification notification);
+
+    /**
      * 根据通知ID查询通知
      * @param id 通知ID
      * @return 通知信息

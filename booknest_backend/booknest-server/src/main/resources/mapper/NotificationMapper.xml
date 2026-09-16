@@ -6,20 +6,42 @@
     <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
          数据库列（snake_case）自动映射到实体属性（camelCase） -->
 
-    <!-- 插入通知（id 由数据库自增生成） -->
+    <!-- 显式列清单（不用 select *）。
+         表里有一个 STORED 生成列 `dedup_key`（消费幂等去重键，见 2026-09-14 的升级脚本），
+         它没有任何实体属性与之对应。select * 会把它一并捞回来，然后 MyBatis 自动映射时
+         静默丢弃 —— 不报错，但每次查询都白传一列、还依赖「未匹配列会被忽略」这个隐含行为。
+         显式列出业务列，既省流量，也让「VO/实体有哪些字段」一眼可见。 -->
+    <sql id="Base_Column_List">
+        id, receiver_id, type, content, source_id, anchor_id, is_read, create_time, read_time
+    </sql>
+
+    <!-- 插入通知（id 由数据库自增生成；dedup_key 是生成列，不参与、也不能出现在列清单里） -->
     <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Notification">
-        insert into booknest.`notification`(receiver_id, type, content, source_id, is_read, create_time)
-        values (#{receiverId}, #{type}, #{content}, #{sourceId}, #{isRead}, #{createTime})
+        insert into booknest.`notification`(receiver_id, type, content, source_id, anchor_id, is_read, create_time)
+        values (#{receiverId}, #{type}, #{content}, #{sourceId}, #{anchorId}, #{isRead}, #{createTime})
+    </insert>
+
+    <!-- 幂等插入通知：重复消息撞 uk_notification_dedup 时静默跳过，返回影响行数 0。
+         用 INSERT IGNORE 而不是「先 select 再 insert」—— 后者在并发重复投递下会双双 select
+         到空、再双双 insert，仍然靠唯一键兜底，白多一次查询。
+         ⚠️ 唯一键建在生成列 dedup_key 上（而不是直接建在四个业务列上）：
+            MySQL 唯一索引逐列判等、NULL 之间互不相等，只要四列里有任何一列是 NULL
+            该行就永远不冲突。LIKE/COMMENT/FOLLOW 的 anchor_id 恒为 NULL，正落在盲区里。
+            生成列先把 NULL 折叠成空串，去重才真正生效。 -->
+    <insert id="insertIgnore" parameterType="com.fuhua.booknest.pojo.entity.Notification">
+        insert ignore into booknest.`notification`(receiver_id, type, content, source_id, anchor_id, is_read, create_time)
+        values (#{receiverId}, #{type}, #{content}, #{sourceId}, #{anchorId}, #{isRead}, #{createTime})
     </insert>
 
     <!-- 根据通知ID查询通知 -->
     <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Notification">
-        select * from booknest.`notification` where id = #{id}
+        select <include refid="Base_Column_List"/> from booknest.`notification` where id = #{id}
     </select>
 
     <!-- 根据接收者查询通知列表（按创建时间倒序） -->
     <select id="listByReceiverId" resultType="com.fuhua.booknest.pojo.entity.Notification">
-        select * from booknest.`notification` where receiver_id = #{receiverId} order by create_time desc
+        select <include refid="Base_Column_List"/> from booknest.`notification`
+        where receiver_id = #{receiverId} order by create_time desc
     </select>
 
     <!-- 统计未读通知数 -->
