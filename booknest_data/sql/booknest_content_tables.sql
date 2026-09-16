@@ -43,19 +43,25 @@ CREATE TABLE `book` (
 -- ------------------------------------------------------
 DROP TABLE IF EXISTS `category`;
 CREATE TABLE `category` (
-    `id` VARCHAR(36) PRIMARY KEY COMMENT '分类ID（UUID）',
-    `name` VARCHAR(50) NOT NULL COMMENT '分类名称',
-    `parent_id` VARCHAR(36) DEFAULT NULL COMMENT '父分类ID，NULL表示一级分类',
+    `id` VARCHAR(36) PRIMARY KEY COMMENT '书吧ID（UUID）',
+    `name` VARCHAR(50) NOT NULL COMMENT '书吧名称，例如「科幻小说吧」',
+    `icon` VARCHAR(500) DEFAULT NULL COMMENT '书吧图标URL（为空时前端用吧名首字兜底）',
+    `parent_id` VARCHAR(36) DEFAULT NULL COMMENT '【遗留列】书吧已取消分级，恒为 NULL，仅为兼容旧数据保留',
     `sort_order` INT DEFAULT 0 COMMENT '排序序号，数字越小越靠前',
-    `description` VARCHAR(200) DEFAULT NULL COMMENT '分类描述',
+    `description` VARCHAR(200) DEFAULT NULL COMMENT '书吧简介',
     `status` INT DEFAULT 1 COMMENT '状态：0-禁用 1-启用',
+    `owner_id` VARCHAR(36) DEFAULT NULL COMMENT '吧主用户ID（NULL 表示官方吧）',
+    `audit_status` TINYINT NOT NULL DEFAULT 1 COMMENT '审批状态：0-待审核 1-已通过 2-已驳回',
+    `reject_reason` VARCHAR(500) DEFAULT NULL COMMENT '驳回原因',
     `create_time` DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `update_time` DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
 
     -- 索引
     INDEX `idx_parent_id` (`parent_id`),
-    INDEX `idx_sort_order` (`sort_order`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='书籍分类表（两级）';
+    INDEX `idx_sort_order` (`sort_order`),
+    INDEX `idx_owner_id` (`owner_id`),
+    INDEX `idx_audit_status` (`audit_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='书吧表（原书籍分类表；已取消分级，所有吧平级）';
 
 -- ------------------------------------------------------
 -- 3. 标签表
@@ -87,6 +93,7 @@ CREATE TABLE `post` (
     `content_url` VARCHAR(500) NOT NULL COMMENT '正文Markdown的OSS地址',
     `cover_image` VARCHAR(500) DEFAULT NULL COMMENT '封面图URL',
     `category_id` VARCHAR(36) DEFAULT NULL COMMENT '分类ID',
+    `post_type` VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT '帖子类型：NORMAL-普通书评 HELP-求助贴',
     `view_count` BIGINT DEFAULT 0 COMMENT '浏览量',
     `like_count` INT DEFAULT 0 COMMENT '点赞数',
     `comment_count` INT DEFAULT 0 COMMENT '评论数',
@@ -105,7 +112,8 @@ CREATE TABLE `post` (
     INDEX `idx_status_publish_time` (`status`, `publish_time`),
     INDEX `idx_category_publish_time` (`category_id`, `publish_time`),
     INDEX `idx_publish_time` (`publish_time`),
-    INDEX `idx_view_count` (`view_count`)
+    INDEX `idx_view_count` (`view_count`),
+    INDEX `idx_post_type_publish_time` (`post_type`, `publish_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='帖子/书评表';
 
 -- ------------------------------------------------------
@@ -167,77 +175,43 @@ CREATE TABLE `booklist_item` (
 -- ====================================
 
 -- ------------------------------------------------------
--- 初始化一级分类数据（8个）
+-- 初始化书吧数据（32 个吧，全部平级、无父级）
 -- ------------------------------------------------------
+-- 书吧已取消「分类树」结构：下面这些吧彼此独立，谁也不是谁的子级。
+-- 命名统一带「吧」后缀（贴吧式叫法），前端直接展示 name 即可。
 INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '文学', NULL, 1, '文学作品与赏析', 1),
-(UUID(), '小说', NULL, 2, '各类小说作品', 1),
-(UUID(), '历史', NULL, 3, '历史读物与史学研究', 1),
-(UUID(), '科幻', NULL, 4, '科幻与奇幻作品', 1),
-(UUID(), '悬疑推理', NULL, 5, '悬疑、推理、犯罪题材', 1),
-(UUID(), '经管', NULL, 6, '经济、管理与商业', 1),
-(UUID(), '社科', NULL, 7, '社会科学与人文', 1),
-(UUID(), '生活', NULL, 8, '生活百科与兴趣', 1);
-
--- ------------------------------------------------------
--- 初始化二级分类数据（每个一级下2~3个）
--- ------------------------------------------------------
-
--- 文学的子分类
-SET @wenxue_id = (SELECT id FROM `category` WHERE name = '文学' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '散文', @wenxue_id, 1, '散文随笔', 1),
-(UUID(), '诗歌', @wenxue_id, 2, '诗词歌赋', 1),
-(UUID(), '文学评论', @wenxue_id, 3, '文学理论与评论', 1);
-
--- 小说的子分类
-SET @xiaoshuo_id = (SELECT id FROM `category` WHERE name = '小说' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '现代小说', @xiaoshuo_id, 1, '现当代小说', 1),
-(UUID(), '古典名著', @xiaoshuo_id, 2, '中外古典文学名著', 1),
-(UUID(), '网络文学', @xiaoshuo_id, 3, '网络连载文学', 1);
-
--- 历史的子分类
-SET @lishi_id = (SELECT id FROM `category` WHERE name = '历史' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '中国历史', @lishi_id, 1, '中国历史读物', 1),
-(UUID(), '世界历史', @lishi_id, 2, '世界历史读物', 1),
-(UUID(), '人物传记', @lishi_id, 3, '历史人物传记', 1);
-
--- 科幻的子分类
-SET @kehuan_id = (SELECT id FROM `category` WHERE name = '科幻' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '硬科幻', @kehuan_id, 1, '硬核科幻作品', 1),
-(UUID(), '软科幻', @kehuan_id, 2, '软科幻与人文科幻', 1),
-(UUID(), '奇幻', @kehuan_id, 3, '奇幻魔幻作品', 1);
-
--- 悬疑推理的子分类
-SET @xuanyi_id = (SELECT id FROM `category` WHERE name = '悬疑推理' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '推理小说', @xuanyi_id, 1, '本格/社会派推理', 1),
-(UUID(), '惊悚悬疑', @xuanyi_id, 2, '惊悚悬疑作品', 1),
-(UUID(), '犯罪纪实', @xuanyi_id, 3, '真实犯罪纪实文学', 1);
-
--- 经管的子分类
-SET @jingguan_id = (SELECT id FROM `category` WHERE name = '经管' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '经济学', @jingguan_id, 1, '经济学理论与读物', 1),
-(UUID(), '管理学', @jingguan_id, 2, '管理学与商业管理', 1),
-(UUID(), '投资理财', @jingguan_id, 3, '投资与理财', 1);
-
--- 社科的子分类
-SET @sheke_id = (SELECT id FROM `category` WHERE name = '社科' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '社会学', @sheke_id, 1, '社会学研究', 1),
-(UUID(), '心理学', @sheke_id, 2, '心理学读物', 1),
-(UUID(), '政治学', @sheke_id, 3, '政治与公共事务', 1);
-
--- 生活的子分类
-SET @shenghuo_id = (SELECT id FROM `category` WHERE name = '生活' AND parent_id IS NULL LIMIT 1);
-INSERT INTO `category` (`id`, `name`, `parent_id`, `sort_order`, `description`, `status`) VALUES
-(UUID(), '美食', @shenghuo_id, 1, '美食与烹饪', 1),
-(UUID(), '旅行', @shenghuo_id, 2, '旅行与地理', 1),
-(UUID(), '健康养生', @shenghuo_id, 3, '健康与养生', 1);
+(UUID(), '文学吧',   NULL, 1,  '文学作品与赏析', 1),
+(UUID(), '散文吧',   NULL, 2,  '散文随笔', 1),
+(UUID(), '诗歌吧',   NULL, 3,  '诗词歌赋', 1),
+(UUID(), '文学评论吧', NULL, 4, '文学理论与评论', 1),
+(UUID(), '小说吧',   NULL, 5,  '各类小说作品', 1),
+(UUID(), '现代小说吧', NULL, 6, '现当代小说', 1),
+(UUID(), '古典名著吧', NULL, 7, '中外古典文学名著', 1),
+(UUID(), '网络文学吧', NULL, 8, '网络连载文学', 1),
+(UUID(), '历史吧',   NULL, 9,  '历史读物与史学研究', 1),
+(UUID(), '中国历史吧', NULL, 10, '中国历史读物', 1),
+(UUID(), '世界历史吧', NULL, 11, '世界历史读物', 1),
+(UUID(), '人物传记吧', NULL, 12, '历史人物传记', 1),
+(UUID(), '科幻吧',   NULL, 13, '科幻与奇幻作品', 1),
+(UUID(), '硬科幻吧', NULL, 14, '硬核科幻作品', 1),
+(UUID(), '软科幻吧', NULL, 15, '软科幻与人文科幻', 1),
+(UUID(), '奇幻吧',   NULL, 16, '奇幻魔幻作品', 1),
+(UUID(), '悬疑推理吧', NULL, 17, '悬疑、推理、犯罪题材', 1),
+(UUID(), '推理小说吧', NULL, 18, '本格/社会派推理', 1),
+(UUID(), '惊悚悬疑吧', NULL, 19, '惊悚悬疑作品', 1),
+(UUID(), '犯罪纪实吧', NULL, 20, '真实犯罪纪实文学', 1),
+(UUID(), '经管吧',   NULL, 21, '经济、管理与商业', 1),
+(UUID(), '经济学吧', NULL, 22, '经济学理论与读物', 1),
+(UUID(), '管理学吧', NULL, 23, '管理学与商业管理', 1),
+(UUID(), '投资理财吧', NULL, 24, '投资与理财', 1),
+(UUID(), '社科吧',   NULL, 25, '社会科学与人文', 1),
+(UUID(), '社会学吧', NULL, 26, '社会学研究', 1),
+(UUID(), '心理学吧', NULL, 27, '心理学读物', 1),
+(UUID(), '政治学吧', NULL, 28, '政治与公共事务', 1),
+(UUID(), '生活吧',   NULL, 29, '生活百科与兴趣', 1),
+(UUID(), '美食吧',   NULL, 30, '美食与烹饪', 1),
+(UUID(), '旅行吧',   NULL, 31, '旅行与地理', 1),
+(UUID(), '健康养生吧', NULL, 32, '健康与养生', 1);
 
 -- ------------------------------------------------------
 -- 初始化标签数据（22个）

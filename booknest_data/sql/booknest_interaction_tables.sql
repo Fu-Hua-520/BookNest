@@ -21,7 +21,10 @@ DROP TABLE IF EXISTS `post_comment`;
 CREATE TABLE `post_comment` (
     `id` VARCHAR(36) PRIMARY KEY COMMENT '评论ID（UUID）',
     `post_id` VARCHAR(36) NOT NULL COMMENT '帖子ID',
-    `user_id` VARCHAR(36) NOT NULL COMMENT '评论者用户ID',
+    -- user_id 与 bot_id 二选一有值：真人评论写 user_id，AI 机器人回复写 bot_id。
+    -- user_id 因此不能是 NOT NULL（机器人没有对应的 user 行）。
+    `user_id` VARCHAR(36) DEFAULT NULL COMMENT '评论者用户ID（AI 机器人回复时为 NULL）',
+    `bot_id` VARCHAR(36) DEFAULT NULL COMMENT 'AI 机器人ID（真人评论时为 NULL）',
     `content` TEXT NOT NULL COMMENT '评论内容',
     `reply_id` VARCHAR(36) DEFAULT NULL COMMENT '被回复的评论ID，顶级评论为NULL',
     `like_count` INT DEFAULT 0 COMMENT '点赞数',
@@ -29,7 +32,8 @@ CREATE TABLE `post_comment` (
 
     -- 索引
     INDEX `idx_post_id` (`post_id`),
-    INDEX `idx_reply_id` (`reply_id`)
+    INDEX `idx_reply_id` (`reply_id`),
+    INDEX `idx_comment_bot` (`bot_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='帖子评论表';
 
 -- ------------------------------------------------------
