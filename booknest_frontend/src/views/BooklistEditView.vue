@@ -3,15 +3,17 @@
  * 书单创建 / 编辑
  * 新建时可直接挑选初始书籍；编辑时书籍增删在详情页完成
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import * as booklistApi from '@/api/booklist'
 import * as bookApi from '@/api/book'
+import { useUserStore } from '@/stores/user'
 import BnCover from '@/components/BnCover.vue'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 const formRef = ref(null)
 const submitting = ref(false)
@@ -31,6 +33,60 @@ const form = reactive({
 const pickedBooks = ref([])
 const bookOptions = ref([])
 const bookSearching = ref(false)
+
+/**
+ * 封面：选图即上传，页面上只给用户看图，不暴露 OSS 地址。
+ * 地址存在 form.coverImage 里，随表单一起提交入库；本地 blob 仅用于秒出预览。
+ */
+const localPreview = ref('')
+const uploadingCover = ref(false)
+
+const coverPreview = computed(() => localPreview.value || form.coverImage)
+const coverBtnText = computed(() => {
+  if (uploadingCover.value) return '上传中'
+  return form.coverImage ? '更换封面' : '上传封面'
+})
+
+function releasePreview() {
+  if (localPreview.value) {
+    URL.revokeObjectURL(localPreview.value)
+    localPreview.value = ''
+  }
+}
+
+function clearCover() {
+  releasePreview()
+  form.coverImage = ''
+}
+
+async function onCoverUpload(options) {
+  const { file, onSuccess, onError } = options
+  releasePreview()
+  localPreview.value = URL.createObjectURL(file)
+  uploadingCover.value = true
+
+  try {
+    const { uploadFile } = await import('@/api/user')
+    const url = await uploadFile(file)
+    // 远端图预加载完再撤掉 blob，避免 revoke 瞬间闪白
+    await new Promise((resolve) => {
+      const img = new Image()
+      img.onload = resolve
+      img.onerror = resolve
+      img.src = url
+    })
+    form.coverImage = url
+    releasePreview()
+    onSuccess?.(url)
+    ElMessage.success('封面上传成功')
+  } catch (err) {
+    // 失败必须撤回 blob 预览，否则用户以为已生效
+    releasePreview()
+    onError?.(err)
+  } finally {
+    uploadingCover.value = false
+  }
+}
 
 const rules = {
   title: [
@@ -136,6 +192,8 @@ async function onSubmit() {
 onMounted(() => {
   if (isEdit.value) loadForEdit()
 })
+
+onUnmounted(releasePreview)
 </script>
 
 <template>
@@ -174,17 +232,30 @@ onMounted(() => {
       <el-form-item label="封面图（可选）">
         <div class="cover-row">
           <BnCover
-            v-if="form.coverImage"
-            :src="form.coverImage"
+            v-if="coverPreview"
+            :src="coverPreview"
             title="书单封面"
             width="90px"
             height="120px"
+            :class="{ 'cover-pending': uploadingCover }"
           />
-          <el-input
-            v-model="form.coverImage"
-            placeholder="粘贴图片 URL，留空则使用首本书封面"
-            clearable
-          />
+          <div class="cover-actions">
+            <div class="cover-btns">
+              <el-upload
+                :show-file-list="false"
+                :http-request="onCoverUpload"
+                accept="image/*"
+                :disabled="!userStore.isLoggedIn || uploadingCover"
+              >
+                <el-button :loading="uploadingCover">
+                  <el-icon v-if="!uploadingCover" style="margin-right: 4px"><Upload /></el-icon>
+                  {{ coverBtnText }}
+                </el-button>
+              </el-upload>
+              <el-button v-if="coverPreview" link @click="clearCover">移除封面</el-button>
+            </div>
+            <p class="bn-text-muted cover-tip">不上传时将使用首本书的封面</p>
+          </div>
         </div>
       </el-form-item>
 
@@ -283,6 +354,27 @@ onMounted(() => {
   gap: 14px;
   align-items: flex-start;
   width: 100%;
+}
+
+.cover-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cover-btns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 上传中：本地预览已渲染，压暗表示还没真正落到云端 */
+.cover-pending {
+  opacity: 0.55;
+}
+
+.cover-tip {
+  font-size: 12px;
 }
 
 .radio-label {

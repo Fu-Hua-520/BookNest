@@ -2,11 +2,19 @@ import http from '@/utils/request'
 
 /**
  * 分页查询帖子列表
- * @param {{categoryId?:string, tagId?:string, auditStatus?:number, page?:number, pageSize?:number}} params
+ * @param {{categoryId?:string, tagId?:string, userId?:string, auditStatus?:number,
+ *          sort?:'latest'|'hot'|'views'|'essence'|'comments',
+ *          postType?:'NORMAL'|'HELP',
+ *          page?:number, pageSize?:number}} params
  * @returns {Promise<Array>} PostVO[]
  */
 export function listPosts(params) {
   return http.get('/post/list', { params })
+}
+
+/** 我收藏的帖子 → PostVO[]（按收藏时间倒序） */
+export function listMyCollectedPosts(page = 1, pageSize = 10) {
+  return http.get('/post/collect/list', { params: { page, pageSize } })
 }
 
 /** 帖子详情 → PostDetailVO（含 content / auditStatus） */

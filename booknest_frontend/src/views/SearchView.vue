@@ -1,13 +1,15 @@
 <script setup>
 /**
- * 搜索页：帖 / 书籍 / 书单 三 Tab
- * 后端 /post/list 不支持关键词，帖子 Tab 采用「拉取最新 N 条 + 前端匹配」的降级策略并明确提示
+ * 搜索页：帖 / 书籍 / 书单 / 书吧 四 Tab
+ * 后端 /post/list 不支持关键词，帖子 Tab 采用「拉取最新 N 条 + 前端匹配」的降级策略并明确提示；
+ * 书吧 Tab 走后端真搜索（/category/search），结果都是可点的吧卡片。
  */
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import * as postApi from '@/api/post'
 import * as bookApi from '@/api/book'
 import * as booklistApi from '@/api/booklist'
+import * as taxonomyApi from '@/api/taxonomy'
 import { useTaxonomyStore } from '@/stores/taxonomy'
 import BnCover from '@/components/BnCover.vue'
 import BnAvatar from '@/components/BnAvatar.vue'
@@ -27,12 +29,14 @@ const loading = ref(false)
 const posts = ref([])
 const books = ref([])
 const booklists = ref([])
+const bars = ref([])
 /** 帖子搜索为本地匹配，标记数据来源的局限 */
 const postSearchLimited = ref(false)
 
 const hasResult = computed(() => {
   if (tab.value === 'post') return posts.value.length > 0
   if (tab.value === 'book') return books.value.length > 0
+  if (tab.value === 'bar') return bars.value.length > 0
   return booklists.value.length > 0
 })
 
@@ -56,15 +60,17 @@ async function runSearch() {
     posts.value = []
     books.value = []
     booklists.value = []
+    bars.value = []
     return
   }
 
   loading.value = true
   postSearchLimited.value = false
   try {
-    const [bookResult, booklistResult, postPages] = await Promise.allSettled([
+    const [bookResult, booklistResult, barResult, postPages] = await Promise.allSettled([
       bookApi.searchBooks(kw),
       booklistApi.listBooklists({ page: 1, pageSize: 30 }),
+      taxonomyApi.searchBars(kw),
       Promise.all([
         postApi.listPosts({ page: 1, pageSize: 50, auditStatus: 1 }),
         postApi.listPosts({ page: 2, pageSize: 50, auditStatus: 1 })
@@ -72,6 +78,7 @@ async function runSearch() {
     ])
 
     books.value = bookResult.status === 'fulfilled' ? bookResult.value || [] : []
+    bars.value = barResult.status === 'fulfilled' ? barResult.value || [] : []
 
     const allBooklists = booklistResult.status === 'fulfilled' ? booklistResult.value || [] : []
     booklists.value = allBooklists.filter((item) =>
@@ -161,6 +168,7 @@ onMounted(() => {
         <el-tab-pane :label="`书评 (${posts.length})`" name="post" />
         <el-tab-pane :label="`书籍 (${books.length})`" name="book" />
         <el-tab-pane :label="`书单 (${booklists.length})`" name="booklist" />
+        <el-tab-pane :label="`书吧 (${bars.length})`" name="bar" />
       </el-tabs>
 
       <el-alert
@@ -206,6 +214,31 @@ onMounted(() => {
               </div>
             </router-link>
           </div>
+        </template>
+
+        <!-- 书吧 -->
+        <template v-else-if="tab === 'bar'">
+          <router-link
+            v-for="bar in bars"
+            :key="bar.id"
+            :to="`/bars/${bar.id}`"
+            class="bn-card bn-card-hover bar-item"
+          >
+            <img v-if="bar.icon" :src="bar.icon" :alt="bar.name" class="bar-mark" />
+            <span v-else class="bar-mark bar-mark-text">{{ bar.name?.slice(0, 1) }}</span>
+            <div class="bar-item-body">
+              <p class="bar-item-title">{{ bar.name }}</p>
+              <p class="bar-item-desc bn-ellipsis-2">
+                {{ bar.description || '这个吧还没有简介' }}
+              </p>
+            </div>
+            <div class="bar-item-side">
+              <BnAvatar :src="bar.ownerAvatar" :name="bar.ownerName" :size="22" :linkable="false" />
+              <span class="bn-text-muted">
+                {{ bar.ownerName ? `吧主 ${bar.ownerName}` : '官方吧' }} · {{ bar.postCount || 0 }} 帖
+              </span>
+            </div>
+          </router-link>
         </template>
 
         <!-- 书单 -->
@@ -337,5 +370,56 @@ onMounted(() => {
   gap: 10px;
   font-size: 12px;
   margin-top: 9px;
+}
+
+/* ---------- 书吧 Tab ---------- */
+.bar-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+}
+
+.bar-mark {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  object-fit: cover;
+  background: var(--bn-primary-soft);
+}
+
+.bar-mark-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--bn-primary);
+}
+
+.bar-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.bar-item-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.bar-item-desc {
+  font-size: 12.5px;
+  color: var(--bn-text-muted);
+  line-height: 1.65;
+  margin-top: 4px;
+}
+
+.bar-item-side {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
 }
 </style>

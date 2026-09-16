@@ -29,7 +29,9 @@ export function listPosts(params) {
  * @param {{auditStatus:number, auditReason?:string}} data
  */
 export function auditPost(id, data) {
-  return http.post(`/admin/post/${id}/audit`, data)
+  // 后端 audit() 用 @RequestParam 接收，参数必须放 query string。
+  // 放 JSON body 时 Spring 解析不到 → MissingServletRequestParameterException → 400。
+  return http.post(`/admin/post/${id}/audit`, null, { params: data })
 }
 
 /** 设置/取消置顶 */
@@ -64,9 +66,9 @@ export function deleteBook(id) {
   return http.delete(`/admin/book/${id}`)
 }
 
-/* ------------------------- 分类管理 ------------------------- */
+/* ------------------------- 书吧管理 ------------------------- */
 
-/** 完整分类树（含禁用分类） → AdminCategoryVO[] */
+/** 完整书吧列表（含禁用书吧） → AdminCategoryVO[] */
 export function listCategoryTree() {
   return http.get('/admin/category/tree')
 }
@@ -84,6 +86,61 @@ export function updateCategory(id, data) {
 /** 删除分类（有子分类或被帖子引用时后端拒绝） */
 export function deleteCategory(id) {
   return http.delete(`/admin/category/${id}`)
+}
+
+/** 书吧创建申请列表 → BarVO[]（auditStatus: 0-待审核 1-已通过 2-已驳回） */
+export function listBarApplications(auditStatus = 0) {
+  return http.get('/admin/category/applications', { params: { auditStatus } })
+}
+
+/**
+ * 审批书吧创建申请（approve=true 通过；驳回时必须带 rejectReason）
+ * @param {string} ownerId 可选：通过时指定吧主用户ID（不传维持申请人）
+ */
+export function auditBar(id, approve, rejectReason, ownerId) {
+  return http.put(`/admin/category/${id}/audit`, {
+    approve,
+    rejectReason,
+    ownerId: ownerId || undefined
+  })
+}
+
+/* ------------------------- 书吧吧务（/admin/bar） ------------------------- */
+
+/**
+ * 书吧吧务全貌：吧主 + 管理员 + 等级称号 + 成员数 → BarManageVO
+ * @param {string} barId
+ */
+export function getBarManage(barId) {
+  return http.get(`/admin/bar/${barId}`)
+}
+
+/**
+ * 任命 / 更换吧主
+ * @param {string} barId
+ * @param {string|null} userId 传 null / '' 表示收回吧主（变成官方吧）
+ */
+export function setBarOwner(barId, userId) {
+  return http.put(`/admin/bar/${barId}/owner`, { userId: userId || null })
+}
+
+/** 任命管理员 → BarModeratorVO[] */
+export function addBarModerator(barId, userId) {
+  return http.post(`/admin/bar/${barId}/moderators`, { userId })
+}
+
+/** 撤销管理员 → BarModeratorVO[] */
+export function removeBarModerator(barId, userId) {
+  return http.delete(`/admin/bar/${barId}/moderators/${userId}`)
+}
+
+/**
+ * 整批重设等级称号
+ * @param {string} barId
+ * @param {{level:number,title:string}[]} titles 传空数组表示清空
+ */
+export function setBarTitles(barId, titles) {
+  return http.put(`/admin/bar/${barId}/titles`, titles)
 }
 
 /* ------------------------- 标签管理 ------------------------- */
@@ -125,26 +182,28 @@ export function updateUserRole(id, role) {
   return http.post(`/admin/user/${id}/role`, null, { params: { role } })
 }
 
-/* ------------------------- AI 额度 ------------------------- */
+/* ------------------------- AI 机器人审核 ------------------------- */
 
-/** 查询指定用户剩余额度 → number */
-export function getUserQuota(userId) {
-  return http.get(`/admin/ai-quota/${userId}`)
+/**
+ * AI 机器人列表 → AiBotVO[]
+ * @param {number|null} auditStatus 0-待审核 1-已通过 2-已驳回；传 null 查全部
+ */
+export function listBots(auditStatus = 0) {
+  return http.get('/admin/bot/list', { params: { auditStatus } })
 }
 
-/** 设置指定用户额度 */
-export function setUserQuota(userId, quota) {
-  return http.post(`/admin/ai-quota/${userId}`, null, { params: { quota } })
+/**
+ * 审批 AI 机器人
+ * @param {boolean} approve 驳回时必须带 rejectReason
+ */
+export function auditBot(id, approve, rejectReason) {
+  return http.put(`/admin/bot/${id}/audit`, { approve, rejectReason })
 }
 
-/** 重置指定用户额度 */
-export function resetUserQuota(userId) {
-  return http.delete(`/admin/ai-quota/${userId}`)
-}
-
-/* ------------------------- 向量库 ------------------------- */
-
-/** 手动重建 RAG 索引：清空集合后重新写入点赞量前 N 的热门帖 → 重建统计 */
-export function rebuildRagIndex() {
-  return http.post('/admin/embedding/rebuild', null, { timeout: 600000 })
+/**
+ * 删除 AI 机器人（连带删除它的历史回复）
+ * 管理端不受归属限制，任何状态的机器人都能删。
+ */
+export function deleteBot(id) {
+  return http.delete(`/admin/bot/${id}`)
 }
