@@ -17,7 +17,10 @@ public class PostComment implements Serializable {
 
     private String id;
     private String postId;
+    /** 评论者用户ID；AI 机器人回复时为 null */
     private String userId;
+    /** AI 机器人ID；真人评论时为 null。（userId 与 botId 二选一有值） */
+    private String botId;
     private String content;
     private String replyId;
     private Integer likeCount;

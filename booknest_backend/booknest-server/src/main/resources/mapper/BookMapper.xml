@@ -17,6 +17,15 @@
         select * from booknest.`book` where id = #{id}
     </select>
 
+    <!-- 按ID批量查询书籍（帖子列表组装用；一次 in 查询替代循环 selectById） -->
+    <select id="selectByIds" resultType="com.fuhua.booknest.pojo.entity.Book">
+        select * from booknest.`book`
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
     <!-- 根据ISBN查询书籍 -->
     <select id="selectByIsbn" resultType="com.fuhua.booknest.pojo.entity.Book">
         select * from booknest.`book` where isbn = #{isbn}

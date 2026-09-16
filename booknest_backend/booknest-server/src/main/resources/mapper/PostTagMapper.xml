@@ -31,6 +31,18 @@
         select tag_id from booknest.`post_tag` where post_id = #{postId}
     </select>
 
+    <!-- 批量查询多篇帖子的「帖子ID + 标签ID」扁平行，由调用方在内存里分组。
+         刻意不用 @MapKey：它的语义是 map.put(key,row)，同 key 多行会互相覆盖而不是并成 List。 -->
+    <select id="listTagRowsByPostIds"
+            resultType="com.fuhua.booknest.server.mapper.PostTagMapper$PostTagRow">
+        select post_id as postId, tag_id as tagId
+        from booknest.`post_tag`
+        where post_id in
+        <foreach collection="postIds" item="postId" open="(" separator="," close=")">
+            #{postId}
+        </foreach>
+    </select>
+
     <!-- 统计使用指定标签的帖子数（删除标签前的引用检查） -->
     <select id="countByTagId" resultType="int">
         select count(*) from booknest.`post_tag` where tag_id = #{tagId}

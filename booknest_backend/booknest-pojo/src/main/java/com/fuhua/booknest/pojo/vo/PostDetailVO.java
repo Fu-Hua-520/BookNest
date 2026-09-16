@@ -28,6 +28,8 @@ public class PostDetailVO implements Serializable {
     private String bookTitle;
     private String categoryId;
     private String categoryName;
+    /** 帖子类型：NORMAL-普通 HELP-求助贴 */
+    private String postType;
     private String authorId;
     private String authorName;
     private String authorAvatar;
@@ -45,4 +47,9 @@ public class PostDetailVO implements Serializable {
     private Integer auditStatus;
     // 审核拒绝原因
     private String auditReason;
+    /**
+     * 帖子状态：1-已上架 0-草稿 3-已下架（被吧务隐藏）
+     * 之前只给管理端用，前台看不出来；吧务要能隐藏/恢复吧内帖，详情页必须拿到这个值。
+     */
+    private Integer status;
 }

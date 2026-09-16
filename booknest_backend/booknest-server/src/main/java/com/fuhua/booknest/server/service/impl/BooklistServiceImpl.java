@@ -26,7 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -123,19 +125,33 @@ public class BooklistServiceImpl implements BooklistService {
         // 私密书单访问控制
         checkAccess(booklist);
 
-        // 查询条目并填充书籍信息
+        // 查询条目并填充书籍信息：一次 in 查询取回全部书籍
+        // （原来是循环里逐条 bookMapper.selectById，条目越多往返越多）
         List<BooklistItemVO> itemVOs = new ArrayList<>();
         List<BooklistItem> items = booklistItemMapper.listByBooklistId(id);
-        if (items != null) {
+        if (items != null && !items.isEmpty()) {
+            List<String> bookIds = new ArrayList<>(items.size());
             for (BooklistItem item : items) {
-                Book book = null;
                 if (item.getBookId() != null && !item.getBookId().isEmpty()) {
-                    book = bookMapper.selectById(item.getBookId());
+                    bookIds.add(item.getBookId());
                 }
+            }
+            Map<String, Book> bookById = new HashMap<>();
+            if (!bookIds.isEmpty()) {
+                List<Book> books = bookMapper.selectByIds(bookIds);
+                if (books != null) {
+                    for (Book book : books) {
+                        if (book != null && book.getId() != null) {
+                            bookById.put(book.getId(), book);
+                        }
+                    }
+                }
+            }
+            for (BooklistItem item : items) {
                 itemVOs.add(BooklistItemVO.builder()
                         .id(item.getId())
                         .bookId(item.getBookId())
-                        .book(book)
+                        .book(bookById.get(item.getBookId()))
                         .note(item.getNote())
                         .sortOrder(item.getSortOrder())
                         .build());
@@ -177,25 +193,12 @@ public class BooklistServiceImpl implements BooklistService {
         // visibility=0 仅返回公开书单
         List<Booklist> booklists = booklistMapper.list(0, userId);
 
-        List<BooklistVO> result = new ArrayList<>();
-        if (booklists != null) {
-            for (Booklist booklist : booklists) {
-                result.add(toBooklistVO(booklist));
-            }
-        }
-        return result;
+        return toBooklistVOList(booklists);
     }
 
     @Override
     public List<BooklistVO> listMyBooklists() {
-        List<Booklist> booklists = booklistMapper.selectByUserId(BaseContext.getCurrentId());
-        List<BooklistVO> result = new ArrayList<>();
-        if (booklists != null) {
-            for (Booklist booklist : booklists) {
-                result.add(toBooklistVO(booklist));
-            }
-        }
-        return result;
+        return toBooklistVOList(booklistMapper.selectByUserId(BaseContext.getCurrentId()));
     }
 
     @Override
@@ -331,19 +334,62 @@ public class BooklistServiceImpl implements BooklistService {
     }
 
     /**
-     * 组装书单卡片 VO（填充作者用户名与头像）
+     * 组装单条书单卡片 VO。
+     *
+     * <p>调用方手上只有一条记录，所以这里也只取一个人的资料 ——
+     * 走 {@code mapByIds} 而不是 {@code getUserById}，是为了让「空集合/去重」这些边界
+     * 只有一份实现，不必让调用方区分单条还是批量。</p>
+     *
      * @param booklist 书单
      * @return 书单卡片 VO
      */
     private BooklistVO toBooklistVO(Booklist booklist) {
+        Map<String, User> users = booklist.getUserId() == null
+                ? Map.of()
+                : userMapper.mapByIds(List.of(booklist.getUserId()));
+        return toBooklistVO(booklist, users);
+    }
+
+    /**
+     * 批量组装书单卡片 VO。
+     *
+     * <p>一次 IN 查询取回整页作者资料，替代原来「循环里逐条 getUserById」——
+     * 一页 10 条书单原本要 10 次查用户，且同一作者的书单会出现多次重复查询。</p>
+     *
+     * @param booklists 书单列表（可为 null）
+     * @return 卡片 VO 列表；入参为 null 时返回空列表
+     */
+    private List<BooklistVO> toBooklistVOList(List<Booklist> booklists) {
+        List<BooklistVO> result = new ArrayList<>();
+        if (booklists == null || booklists.isEmpty()) {
+            return result;
+        }
+        List<String> userIds = new ArrayList<>(booklists.size());
+        for (Booklist booklist : booklists) {
+            if (booklist.getUserId() != null) {
+                userIds.add(booklist.getUserId());
+            }
+        }
+        Map<String, User> users = userMapper.mapByIds(userIds);
+        for (Booklist booklist : booklists) {
+            result.add(toBooklistVO(booklist, users));
+        }
+        return result;
+    }
+
+    /**
+     * 组装书单卡片 VO（从预取好的用户表里取作者，<b>本方法不查库</b>）
+     * @param booklist 书单
+     * @param users 预取的用户表（用户ID → 用户）
+     * @return 书单卡片 VO
+     */
+    private BooklistVO toBooklistVO(Booklist booklist, Map<String, User> users) {
         String userName = null;
         String userAvatar = null;
-        if (booklist.getUserId() != null) {
-            User user = userMapper.getUserById(booklist.getUserId());
-            if (user != null) {
-                userName = user.getUsername();
-                userAvatar = user.getAvatar();
-            }
+        User user = users.get(booklist.getUserId());
+        if (user != null) {
+            userName = user.getUsername();
+            userAvatar = user.getAvatar();
         }
 
         return BooklistVO.builder()

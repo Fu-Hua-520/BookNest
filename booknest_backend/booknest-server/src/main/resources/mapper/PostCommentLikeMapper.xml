@@ -32,4 +32,9 @@
         select * from booknest.`post_comment_like` where comment_id = #{commentId} and user_id = #{userId}
     </select>
 
+    <!-- 用户点赞过的全部评论 ID（Redis 状态缓存冷启动用） -->
+    <select id="listLikedCommentIdsByUser" resultType="java.lang.String">
+        select comment_id from booknest.`post_comment_like` where user_id = #{userId}
+    </select>
+
 </mapper>

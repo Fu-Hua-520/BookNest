@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -58,7 +59,12 @@ public class FollowServiceImpl implements FollowService {
         // 发送关注通知（异步）
         User currentUser = userMapper.getUserById(currentId);
         String currentUserName = (currentUser == null || currentUser.getUsername() == null) ? "用户" : currentUser.getUsername();
-        notificationProducer.sendNotification(followeeId, NotificationConstant.TYPE_FOLLOW, currentUserName + " 关注了你", null);
+        // sourceId 传「关注者的用户ID」，而不是 null —— 这条通知的落点是关注者的个人主页。
+        // 前端 NotificationView.onOpen 里 FOLLOW 分支是 `router.push('/user/' + item.sourceId)`，
+        // 而它前面还有一句 `if (!item.sourceId) return`：传 null 会让「点关注通知」什么都不发生，
+        // 那段跳转逻辑成了永远走不到的死代码。
+        notificationProducer.sendNotification(
+                followeeId, NotificationConstant.TYPE_FOLLOW, currentUserName + " 关注了你", currentId);
     }
 
     @Override
@@ -73,29 +79,34 @@ public class FollowServiceImpl implements FollowService {
 
     @Override
     public List<FollowVO> listFollowing(String userId) {
-        List<String> followeeIds = userFollowMapper.listFolloweeIds(userId);
-        List<FollowVO> result = new ArrayList<>();
-        if (followeeIds == null) {
-            return result;
-        }
-        for (String followeeId : followeeIds) {
-            User user = userMapper.getUserById(followeeId);
-            if (user != null) {
-                result.add(toFollowVO(user));
-            }
-        }
-        return result;
+        return batchToFollowVO(userFollowMapper.listFolloweeIds(userId));
     }
 
     @Override
     public List<FollowVO> listFollowers(String userId) {
-        List<String> followerIds = userFollowMapper.listFollowerIds(userId);
+        return batchToFollowVO(userFollowMapper.listFollowerIds(userId));
+    }
+
+    /**
+     * 批量把用户ID转成摘要 VO。
+     *
+     * <p>一次 {@code listByIds}（单条 IN 查询）取代「循环里逐条 getUserById」：
+     * 关注 500 人时查询数从 500 降到 1。</p>
+     *
+     * <p>刻意<b>不复用 IN 查询返回的行序</b>：它不保证与入参一致，而关注/粉丝列表的顺序
+     * 有业务含义（按关注时间倒序）。所以按入参 id 顺序回填，保证顺序与原实现完全一致。</p>
+     *
+     * @param userIds 目标用户ID列表（可为 null/空）
+     * @return 摘要 VO 列表，顺序与入参一致；查不到的 id 直接跳过（与原实现一致）
+     */
+    private List<FollowVO> batchToFollowVO(List<String> userIds) {
         List<FollowVO> result = new ArrayList<>();
-        if (followerIds == null) {
+        if (userIds == null || userIds.isEmpty()) {
             return result;
         }
-        for (String followerId : followerIds) {
-            User user = userMapper.getUserById(followerId);
+        Map<String, User> byId = userMapper.mapByIds(userIds);
+        for (String userId : userIds) {
+            User user = byId.get(userId);
             if (user != null) {
                 result.add(toFollowVO(user));
             }

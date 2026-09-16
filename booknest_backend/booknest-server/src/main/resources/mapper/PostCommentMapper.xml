@@ -6,15 +6,25 @@
     <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
          数据库列（snake_case）自动映射到实体属性（camelCase） -->
 
-    <!-- 插入评论 -->
+    <!-- 插入评论：真人评论写 user_id，AI 机器人回复写 bot_id（两者二选一） -->
     <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.PostComment">
-        insert into booknest.`post_comment`(id, post_id, user_id, content, reply_id, like_count, create_time)
-        values (#{id}, #{postId}, #{userId}, #{content}, #{replyId}, #{likeCount}, #{createTime})
+        insert into booknest.`post_comment`(id, post_id, user_id, bot_id, content, reply_id, like_count, create_time)
+        values (#{id}, #{postId}, #{userId}, #{botId}, #{content}, #{replyId}, #{likeCount}, #{createTime})
     </insert>
 
     <!-- 根据评论ID查询评论 -->
     <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.PostComment">
         select * from booknest.`post_comment` where id = #{id}
+    </select>
+
+    <!-- 按ID批量查询评论：一次 in 取代「循环里逐条 selectById」。
+         调用方保证 ids 非空（空集合会拼出 where id in () 语法错误）。 -->
+    <select id="selectByIds" resultType="com.fuhua.booknest.pojo.entity.PostComment">
+        select * from booknest.`post_comment`
+        where id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
     </select>
 
     <!-- 根据评论ID删除评论 -->
@@ -37,14 +47,28 @@
         select * from booknest.`post_comment` where post_id = #{postId} order by create_time asc
     </select>
 
-    <!-- 评论点赞数 +1 -->
-    <update id="incrementLikeCount">
-        update booknest.`post_comment` set like_count = like_count + 1 where id = #{id}
+    <!-- 评论点赞数批量累加（只由 CountFlushJob 调用；业务侧改为写 Redis 计数缓冲）
+         增量可为负（取消点赞）；评论已被删除时影响 0 行，属于预期的静默空操作。 -->
+    <update id="applyLikeCountDelta">
+        update booknest.`post_comment`
+        set like_count = greatest(like_count + #{delta}, 0)
+        where id = #{id}
     </update>
 
-    <!-- 评论点赞数 -1 -->
-    <update id="decrementLikeCount">
-        update booknest.`post_comment` set like_count = like_count - 1 where id = #{id}
-    </update>
+    <!-- 幂等判定：该机器人是否已经回复过这条评论（同一条评论重复触发时不重复回复） -->
+    <select id="countByBotAndReply" resultType="int">
+        select count(*) from booknest.`post_comment`
+        where bot_id = #{botId} and reply_id = #{replyId}
+    </select>
+
+    <!-- 该机器人在评论区留下的回复总数 -->
+    <select id="countByBotId" resultType="int">
+        select count(*) from booknest.`post_comment` where bot_id = #{botId}
+    </select>
+
+    <!-- 删除该机器人的全部回复（删除机器人时连带清理） -->
+    <delete id="deleteByBotId">
+        delete from booknest.`post_comment` where bot_id = #{botId}
+    </delete>
 
 </mapper>

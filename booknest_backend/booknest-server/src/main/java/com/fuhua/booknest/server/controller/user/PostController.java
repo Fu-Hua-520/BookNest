@@ -43,10 +43,27 @@ public class PostController {
     public Result<List<PostVO>> listPosts(
             @RequestParam(required = false) String categoryId,
             @RequestParam(required = false) String tagId,
+            @RequestParam(required = false) String userId,
             @RequestParam(required = false) Integer auditStatus,
+            @RequestParam(required = false) String sort,
+            @RequestParam(required = false) String postType,
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "10") Integer pageSize) {
-        return Result.success(postService.listPosts(categoryId, tagId, auditStatus, page, pageSize));
+        return Result.success(
+                postService.listPosts(categoryId, tagId, userId, auditStatus, sort, postType, page, pageSize));
+    }
+
+    /**
+     * 我的收藏（个人中心用）
+     *
+     * 路径必须是两段（/collect/list），否则会被下面的 /{id} 抢先匹配成「帖子 ID = collect」。
+     */
+    @GetMapping("/collect/list")
+    @Operation(summary = "分页查询我收藏的帖子")
+    public Result<List<PostVO>> listMyCollectedPosts(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "10") Integer pageSize) {
+        return Result.success(postService.listMyCollectedPosts(page, pageSize));
     }
 
     /**

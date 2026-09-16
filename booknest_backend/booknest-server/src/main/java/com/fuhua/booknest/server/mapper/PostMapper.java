@@ -34,14 +34,20 @@ public interface PostMapper {
      * 条件查询帖子列表（供 PageHelper 分页）
      * @param categoryId 分类ID（可空）
      * @param tagId 标签ID（可空）
+     * @param userId 作者用户ID（可空，用于「个人主页只看某人帖子」）
      * @param auditStatus 审核状态（可空）
      * @param status 帖子状态（可空）
+     * @param sort 排序方式（可空，见 PostSortConstant；为空按发布时间倒序）
+     * @param postType 帖子类型（可空，见 PostTypeConstant；为空不过滤）
      * @return 帖子列表
      */
     List<Post> list(@Param("categoryId") String categoryId,
                     @Param("tagId") String tagId,
+                    @Param("userId") String userId,
                     @Param("auditStatus") Integer auditStatus,
-                    @Param("status") Integer status);
+                    @Param("status") Integer status,
+                    @Param("sort") String sort,
+                    @Param("postType") String postType);
 
     /**
      * 更新帖子信息
@@ -56,16 +62,7 @@ public interface PostMapper {
     void deleteById(@Param("id") String id);
 
     /**
-     * 取「按点赞量排序前 N 条」已发布（status=1）且审核通过（audit_status=1）的帖子 ID 集合。
-     * RAG 召回使用：限定向量检索的合法范围，避免长尾帖子污染答案。
-     *
-     * @param hotTopN 限制条数
-     * @return 帖子 ID 列表（按 like_count desc, publish_time desc）
-     */
-    List<String> listHotApprovedPostIds(@Param("hotTopN") int hotTopN);
-
-    /**
-     * 批量按 ID 查帖子，用于召回后补全 RagHit 的元信息（title、summary 等）。
+     * 批量按 ID 查帖子（收藏列表按 ID 回捞、搜索结果补全等）。
      *
      * @param postIds 帖子 ID 集合
      * @return 帖子列表
@@ -73,53 +70,29 @@ public interface PostMapper {
     List<Post> selectByIds(@Param("postIds") List<String> postIds);
 
     /**
-     * 浏览量 +1
-     * @param id 帖子ID
+     * 一次性累加四个计数（由计数落库任务调用，业务代码不直接用它）。
+     *
+     * <p><b>为什么是「一条 UPDATE 带四个增量」而不是四个 increment 方法：</b>
+     * 计数不再由业务同步写入，而是先在 Redis 里按帖子累加、由
+     * {@code CountFlushJob} 定时批量落库。落库时同一篇帖子的浏览/点赞/评论/收藏
+     * 应当合成一条 UPDATE —— 一篇帖子被浏览 300 次再被点赞 20 次，是 1 条语句而不是 320 条。
+     * 增量可能为负（取消点赞/取消收藏/删评论），也可能是 0（该维度本次没有变化）。</p>
+     *
+     * <p>用 {@code greatest(..., 0)} 兜底：正常数据流里计数不会为负，但历史脏数据
+     * （例如 like_count 已是 0 却还有点赞行）叠加负增量就会把它压到负数，
+     * 展示成「-1 赞」。夹住比让用户看到负数体面。</p>
+     *
+     * @param id           帖子ID
+     * @param viewDelta    浏览量增量（可为 0 或负）
+     * @param likeDelta    点赞数增量
+     * @param commentDelta 评论数增量
+     * @param collectDelta 收藏数增量
      */
-    void incrementViewCount(@Param("id") String id);
-
-    /**
-     * 点赞数 +1
-     * @param id 帖子ID
-     */
-    void incrementLikeCount(@Param("id") String id);
-
-    /**
-     * 评论数 +1
-     * @param id 帖子ID
-     */
-    void incrementCommentCount(@Param("id") String id);
-
-    /**
-     * 收藏数 +1
-     * @param id 帖子ID
-     */
-    void incrementCollectCount(@Param("id") String id);
-
-    /**
-     * 点赞数 -1
-     * @param id 帖子ID
-     */
-    void decrementLikeCount(@Param("id") String id);
-
-    /**
-     * 评论数 -1
-     * @param id 帖子ID
-     */
-    void decrementCommentCount(@Param("id") String id);
-
-    /**
-     * 评论数 -count（级联删除评论时按实际删除条数扣减）
-     * @param id 帖子ID
-     * @param count 扣减数量
-     */
-    void decrementCommentCountBy(@Param("id") String id, @Param("count") int count);
-
-    /**
-     * 收藏数 -1
-     * @param id 帖子ID
-     */
-    void decrementCollectCount(@Param("id") String id);
+    void applyCountDeltas(@Param("id") String id,
+                          @Param("viewDelta") long viewDelta,
+                          @Param("likeDelta") long likeDelta,
+                          @Param("commentDelta") long commentDelta,
+                          @Param("collectDelta") long collectDelta);
 
     /**
      * 关键词召回：按标题/摘要模糊匹配已过审帖子（供 RAG 混合检索）

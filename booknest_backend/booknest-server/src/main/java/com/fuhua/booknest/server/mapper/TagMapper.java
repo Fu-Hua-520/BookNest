@@ -36,7 +36,14 @@ public interface TagMapper {
     List<Tag> listAll();
 
     /**
-     * 查询热门标签（按使用次数降序取前 limit 条）
+     * 按ID批量查询标签（帖子列表组装时一次性取回用到的全部标签，避免逐条 selectById）
+     * @param ids 标签ID集合
+     * @return 标签列表
+     */
+    List<Tag> listByIds(@Param("ids") List<String> ids);
+
+    /**
+     * 查询热门标签（按实时引用数降序取前 limit 条）
      * @param limit 数量
      * @return 标签列表
      */
@@ -48,12 +55,6 @@ public interface TagMapper {
      * @return 标签列表
      */
     List<Tag> searchByKeyword(@Param("keyword") String keyword);
-
-    /**
-     * 标签使用次数 +1
-     * @param id 标签ID
-     */
-    void incrementUseCount(@Param("id") String id);
 
     /**
      * 更新标签信息

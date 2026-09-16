@@ -27,12 +27,24 @@ public interface PostService {
      * 分页查询帖子列表
      * @param categoryId 分类ID（可空）
      * @param tagId 标签ID（可空）
+     * @param userId 作者用户ID（可空，用于个人主页按作者过滤）
      * @param auditStatus 审核状态（可空，默认只返回已过审）
+     * @param sort 排序方式（可空，latest/hot/views/essence/comments，非法值回落 latest）
+     * @param postType 帖子类型（可空；传 HELP 只看求助贴，传 NORMAL 只看普通贴，空为全部）
      * @param page 页码
      * @param pageSize 每页条数
      * @return 帖子卡片列表
      */
-    List<PostVO> listPosts(String categoryId, String tagId, Integer auditStatus, Integer page, Integer pageSize);
+    List<PostVO> listPosts(String categoryId, String tagId, String userId, Integer auditStatus,
+                           String sort, String postType, Integer page, Integer pageSize);
+
+    /**
+     * 分页查询当前用户收藏的帖子（个人中心「我的收藏」）
+     * @param page 页码
+     * @param pageSize 每页条数
+     * @return 帖子卡片列表（按收藏时间倒序）
+     */
+    List<PostVO> listMyCollectedPosts(Integer page, Integer pageSize);
 
     /**
      * 按关键词搜索已过审帖子（供 AI 工具调用）

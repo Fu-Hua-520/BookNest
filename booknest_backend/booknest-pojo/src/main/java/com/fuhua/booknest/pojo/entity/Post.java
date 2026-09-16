@@ -23,6 +23,8 @@ public class Post implements Serializable {
     private String contentUrl;
     private String coverImage;
     private String categoryId;
+    /** 帖子类型：NORMAL-普通 HELP-求助贴（见 PostTypeConstant） */
+    private String postType;
     private Long viewCount;
     private Integer likeCount;
     private Integer commentCount;

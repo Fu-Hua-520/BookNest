@@ -28,6 +28,8 @@ public class PostVO implements Serializable {
     private String bookTitle;
     private String categoryId;
     private String categoryName;
+    /** 帖子类型：NORMAL-普通 HELP-求助贴 */
+    private String postType;
     private String authorId;
     private String authorName;
     private String authorAvatar;

@@ -32,4 +32,19 @@
         select count(*) from booknest.`post_collect` where post_id = #{postId}
     </select>
 
+    <!-- 我的收藏：先按收藏时间倒序取帖子 ID（供 PageHelper 分页），
+         再由 Service 批量回查帖子详情并还原顺序。
+         不在这里 join post 表，是为了复用 PostServiceImpl 已有的 toPostVO 组装逻辑 -->
+    <select id="listCollectedPostIdsByUser" resultType="java.lang.String">
+        select post_id from booknest.`post_collect`
+        where user_id = #{userId}
+        order by create_time desc
+    </select>
+
+    <!-- 用户收藏的全部帖子 ID（不分页，供 Redis 状态缓存冷启动一次性灌入） -->
+    <select id="listAllCollectedPostIdsByUser" resultType="java.lang.String">
+        select post_id from booknest.`post_collect`
+        where user_id = #{userId}
+    </select>
+
 </mapper>

@@ -8,10 +8,10 @@
 
     <!-- 插入新帖子 -->
     <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Post">
-        insert into booknest.`post`(id, user_id, book_id, title, summary, content_url, cover_image, category_id,
+        insert into booknest.`post`(id, user_id, book_id, title, summary, content_url, cover_image, category_id, post_type,
                                     view_count, like_count, comment_count, collect_count, status, audit_status,
                                     audit_reason, audit_time, is_top, publish_time)
-        values (#{id}, #{userId}, #{bookId}, #{title}, #{summary}, #{contentUrl}, #{coverImage}, #{categoryId},
+        values (#{id}, #{userId}, #{bookId}, #{title}, #{summary}, #{contentUrl}, #{coverImage}, #{categoryId}, #{postType},
                 #{viewCount}, #{likeCount}, #{commentCount}, #{collectCount}, #{status}, #{auditStatus},
                 #{auditReason}, #{auditTime}, #{isTop}, #{publishTime})
     </insert>
@@ -36,17 +36,48 @@
             <if test="tagId != null and tagId != ''">
                 and id in (select post_id from booknest.`post_tag` where tag_id = #{tagId})
             </if>
+            <if test="userId != null and userId != ''">
+                and user_id = #{userId}
+            </if>
             <if test="auditStatus != null">
                 and audit_status = #{auditStatus}
             </if>
             <if test="status != null">
                 and status = #{status}
             </if>
+            <if test="postType != null and postType != ''">
+                and post_type = #{postType}
+            </if>
         </where>
-        order by publish_time desc, create_time desc
+        <!-- 排序：sort 由 PostSortConstant 白名单归一化后再传入，这里只做分支拼接，
+             避免把客户端字符串直接拼进 order by 造成注入 -->
+        <choose>
+            <when test="sort != null and sort == 'hot'">
+                <!-- hot_score 是 STORED 生成列，表达式 = view_count + like_count * 5 + comment_count * 3。
+                     生成列定义在 upgrade/2026-09-17-post-hot-score-upgrade.sql，表达式只存在于那一处；
+                     这里只引用列名，改权重只需改建列语句。排序顺序与旧版表达式排序逐字等价。 -->
+                <!-- 能走 idx_hot_rank 的前提：本查询恒带 status / audit_status 两个等值条件
+                     （PostServiceImpl.listPosts 强制 auditStatus=AUDIT_APPROVED 且 status=STATUS_PUBLISHED），
+                     等值列正好是索引前两列，所以 hot_score / publish_time 的有序性可以被索引直接提供。 -->
+                order by hot_score desc, publish_time desc
+            </when>
+            <when test="sort != null and sort == 'views'">
+                order by view_count desc, publish_time desc
+            </when>
+            <when test="sort != null and sort == 'essence'">
+                order by like_count desc, view_count desc, publish_time desc
+            </when>
+            <when test="sort != null and sort == 'comments'">
+                order by comment_count desc, publish_time desc
+            </when>
+            <otherwise>
+                order by publish_time desc, create_time desc
+            </otherwise>
+        </choose>
     </select>
 
-    <!-- 更新帖子信息（选择性更新，计数类字段由 incrementXxxCount 专门维护） -->
+    <!-- 更新帖子信息（选择性更新。计数类字段刻意不在这里 update：
+         它们由 Redis 计数缓冲累加、CountFlushJob 批量落库，见 applyCountDeltas） -->
     <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Post">
         update booknest.`post`
         <set>
@@ -55,6 +86,7 @@
             <if test="contentUrl != null">content_url = #{contentUrl},</if>
             <if test="coverImage != null">cover_image = #{coverImage},</if>
             <if test="categoryId != null">category_id = #{categoryId},</if>
+            <if test="postType != null">post_type = #{postType},</if>
             <if test="bookId != null">book_id = #{bookId},</if>
             <if test="status != null">status = #{status},</if>
             <if test="auditStatus != null">audit_status = #{auditStatus},</if>
@@ -72,15 +104,7 @@
         delete from booknest.`post` where id = #{id}
     </delete>
 
-    <!-- 取「按点赞量排序前 N 条」已发布且审核通过的帖子 ID 集合，供 RAG 召回限定范围 -->
-    <select id="listHotApprovedPostIds" resultType="java.lang.String">
-        select id from booknest.`post`
-        where audit_status = 1 and status = 1
-        order by like_count desc, publish_time desc
-        limit #{hotTopN}
-    </select>
-
-    <!-- 按 ID 集合批量查询帖子，用于召回后补全 title/summary 等 -->
+    <!-- 按 ID 集合批量查询帖子（收藏列表按 ID 回捞等） -->
     <select id="selectByIds" resultType="com.fuhua.booknest.pojo.entity.Post">
         select * from booknest.`post` where id in
         <foreach collection="postIds" item="pid" open="(" separator="," close=")">
@@ -88,44 +112,18 @@
         </foreach>
     </select>
 
-    <!-- 浏览量 +1 -->
-    <update id="incrementViewCount">
-        update booknest.`post` set view_count = view_count + 1 where id = #{id}
-    </update>
-
-    <!-- 点赞数 +1 -->
-    <update id="incrementLikeCount">
-        update booknest.`post` set like_count = like_count + 1 where id = #{id}
-    </update>
-
-    <!-- 评论数 +1 -->
-    <update id="incrementCommentCount">
-        update booknest.`post` set comment_count = comment_count + 1 where id = #{id}
-    </update>
-
-    <!-- 收藏数 +1 -->
-    <update id="incrementCollectCount">
-        update booknest.`post` set collect_count = collect_count + 1 where id = #{id}
-    </update>
-
-    <!-- 点赞数 -1 -->
-    <update id="decrementLikeCount">
-        update booknest.`post` set like_count = like_count - 1 where id = #{id}
-    </update>
-
-    <!-- 评论数 -1 -->
-    <update id="decrementCommentCount">
-        update booknest.`post` set comment_count = comment_count - 1 where id = #{id}
-    </update>
-
-    <!-- 评论数 -count（级联删除评论时按实际删除条数扣减） -->
-    <update id="decrementCommentCountBy">
-        update booknest.`post` set comment_count = comment_count - #{count} where id = #{id}
-    </update>
-
-    <!-- 收藏数 -1 -->
-    <update id="decrementCollectCount">
-        update booknest.`post` set collect_count = collect_count - 1 where id = #{id}
+    <!-- 计数批量累加（只由 CountFlushJob 调用；业务侧改为写 Redis 计数缓冲，不直写这里）
+         四个增量合成一条 UPDATE：增量可为负（取消点赞/取消收藏/删评论），为 0 表示该维度本次无变化。
+         greatest(..., 0) 是兜底：正常数据流不会为负，但历史脏数据叠加负增量会压到负数，
+         展示成「-1 赞」比夹到 0 难看得多。
+         注意：id 对应的帖子若已被删除，这条 UPDATE 影响 0 行，属于预期的静默空操作。 -->
+    <update id="applyCountDeltas">
+        update booknest.`post`
+        set view_count    = greatest(view_count + #{viewDelta}, 0),
+            like_count    = greatest(like_count + #{likeDelta}, 0),
+            comment_count = greatest(comment_count + #{commentDelta}, 0),
+            collect_count = greatest(collect_count + #{collectDelta}, 0)
+        where id = #{id}
     </update>
 
     <!-- 关键词召回：按标题/摘要模糊匹配已过审帖子，按浏览量倒序（供 RAG 混合检索） -->

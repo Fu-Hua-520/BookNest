@@ -48,6 +48,15 @@ public interface TagService {
     String createTag(Tag tag);
 
     /**
+     * 用户端：按名称获取标签，不存在则创建（「自由创建标签」入口）
+     * <p>与管理端 createTag 的区别：重名不报错，直接复用已有标签并回读实时引用数，
+     * 这样发帖时用户可以随手输入一个新标签名，无需先跳去建标签。</p>
+     * @param name 标签名称
+     * @return 已存在或新建的标签（useCount 为实时统计值）
+     */
+    Tag getOrCreateByName(String name);
+
+    /**
      * 管理端：更新标签（重命名 / 启用禁用）
      * @param tag 标签信息（必须含 id，可取 name / status）
      */

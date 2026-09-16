@@ -6,45 +6,86 @@
     <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
          数据库列（snake_case）自动映射到实体属性（camelCase） -->
 
+    <!-- ================================================================
+         关于 use_count 字段（重要，勿改回手工维护）
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         注意：XML 注释内不能出现连续两个短横线，本文件的分隔线一律用等号或波浪线。
+         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+         tag.use_count 是历史遗留的冗余计数列，原先靠发帖时 +1 维护，但
+         删帖（PostServiceImpl.deletePost）与编辑换标签（rebuildPostTags）
+         两处都不会减，导致数值只增不减、与实际情况越差越远。
+         现在改为：所有读取路径一律用 post_tag 关联表的实时统计覆盖该列，
+         「一篇帖子引用了某标签」这个事实只存在于 post_tag 一张表里，
+         增删关联即自动同步，业务代码无需再维护任何计数。
+         tag.use_count 列本身降级为遗留列，不再作为事实来源。
+         性能：post_tag 有 uk_post_tag(post_id, tag_id) 唯一键（保证不重复
+         计数）与 idx_tag_id 索引，相关子查询走索引；标签量级很小，无压力。
+         语义：统计全部关联（含待审核/已下架帖子），与改动前保持一致。
+         ================================================================ -->
+
     <!-- 插入新标签 -->
     <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.Tag">
         insert into booknest.`tag`(id, name, use_count, status)
         values (#{id}, #{name}, #{useCount}, #{status})
     </insert>
 
-    <!-- 根据标签ID查询标签 -->
+    <!-- 根据标签ID查询标签（useCount 为实时统计值） -->
     <select id="selectById" resultType="com.fuhua.booknest.pojo.entity.Tag">
-        select * from booknest.`tag` where id = #{id}
+        select t.id, t.name, t.status, t.create_time, t.update_time,
+               (select count(*) from booknest.`post_tag` pt where pt.tag_id = t.id) as use_count
+        from booknest.`tag` t
+        where t.id = #{id}
     </select>
 
-    <!-- 根据标签名称查询标签 -->
+    <!-- 根据标签名称查询标签（useCount 为实时统计值） -->
     <select id="selectByName" resultType="com.fuhua.booknest.pojo.entity.Tag">
-        select * from booknest.`tag` where name = #{name}
+        select t.id, t.name, t.status, t.create_time, t.update_time,
+               (select count(*) from booknest.`post_tag` pt where pt.tag_id = t.id) as use_count
+        from booknest.`tag` t
+        where t.name = #{name}
     </select>
 
-    <!-- 查询全部标签 -->
+    <!-- 查询全部标签（按实时引用数降序；同数时按名称排序，保证分页顺序稳定） -->
     <select id="listAll" resultType="com.fuhua.booknest.pojo.entity.Tag">
-        select * from booknest.`tag` order by use_count desc
+        select t.id, t.name, t.status, t.create_time, t.update_time,
+               (select count(*) from booknest.`post_tag` pt where pt.tag_id = t.id) as use_count
+        from booknest.`tag` t
+        order by use_count desc, t.name asc
     </select>
 
-    <!-- 查询热门标签（按使用次数降序取前 limit 条） -->
+    <!-- 查询热门标签（按实时引用数降序取前 limit 条） -->
     <select id="listHotTags" resultType="com.fuhua.booknest.pojo.entity.Tag">
-        select * from booknest.`tag` order by use_count desc limit #{limit}
+        select t.id, t.name, t.status, t.create_time, t.update_time,
+               (select count(*) from booknest.`post_tag` pt where pt.tag_id = t.id) as use_count
+        from booknest.`tag` t
+        order by use_count desc, t.name asc
+        limit #{limit}
     </select>
 
-    <!-- 按名称模糊搜索标签 -->
+    <!-- 按ID批量查询标签（帖子列表组装用；一次 in 查询替代循环 selectById）。
+         结果顺序不保证与入参一致，调用方须自行按 Map 取用。 -->
+    <select id="listByIds" resultType="com.fuhua.booknest.pojo.entity.Tag">
+        select t.id, t.name, t.status, t.create_time, t.update_time,
+               (select count(*) from booknest.`post_tag` pt where pt.tag_id = t.id) as use_count
+        from booknest.`tag` t
+        where t.id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+
+    <!-- 按名称模糊搜索标签（useCount 为实时统计值） -->
     <select id="searchByKeyword" resultType="com.fuhua.booknest.pojo.entity.Tag">
-        select * from booknest.`tag`
-        where name like concat('%', #{keyword}, '%')
-        order by use_count desc
+        select t.id, t.name, t.status, t.create_time, t.update_time,
+               (select count(*) from booknest.`post_tag` pt where pt.tag_id = t.id) as use_count
+        from booknest.`tag` t
+        where t.name like concat('%', #{keyword}, '%')
+        order by use_count desc, t.name asc
     </select>
 
-    <!-- 标签使用次数 +1 -->
-    <update id="incrementUseCount">
-        update booknest.`tag` set use_count = use_count + 1 where id = #{id}
-    </update>
-
-    <!-- 更新标签信息 -->
+    <!-- 更新标签信息。
+         注意：use_count 仍被写入，但传入值是读取时的实时统计结果（见 TagServiceImpl.updateTag），
+         它对展示没有影响 —— 所有读路径都会重新实时计算。 -->
     <update id="update" parameterType="com.fuhua.booknest.pojo.entity.Tag">
         update booknest.`tag`
         set name = #{name},

@@ -32,4 +32,13 @@
         select count(*) from booknest.`post_like` where post_id = #{postId}
     </select>
 
+    <!-- 查询用户点赞过的全部帖子 ID（Redis 状态缓存冷启动用）
+         走 uk_post_user(post_id, user_id) 的前缀不成立，实际是按 user_id 过滤，
+         依赖的是该唯一键的第二列 —— MySQL 对 (post_id,user_id) 的组合索引
+         无法直接用 user_id 单独检索。这里数据量是「单个用户的点赞数」，量级可控，
+         如后续成为瓶颈可补 idx_user_id(user_id)。 -->
+    <select id="listLikedPostIdsByUser" resultType="java.lang.String">
+        select post_id from booknest.`post_like` where user_id = #{userId}
+    </select>
+
 </mapper>

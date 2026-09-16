@@ -23,6 +23,13 @@ public interface BookMapper {
     Book selectById(@Param("id") String id);
 
     /**
+     * 按ID批量查询书籍（帖子列表组装时一次性取回用到的书，避免逐条 selectById）
+     * @param ids 书籍ID集合
+     * @return 书籍列表
+     */
+    List<Book> selectByIds(@Param("ids") List<String> ids);
+
+    /**
      * 根据ISBN查询书籍
      * @param isbn ISBN号
      * @return 书籍信息
