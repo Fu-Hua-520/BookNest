@@ -22,4 +22,6 @@ public class MessageConstant {
     public static final String ROLE_ADMIN="ADMIN";
 
     public static final String UPLOAD_FAILED="文件上传失败，请重试";
+    public static final String UPLOAD_TOO_FREQUENT="上传过于频繁，请稍后再试";
+    public static final String UPLOAD_UNAUTHORIZED="登录状态异常，请重新登录后再上传";
 }
