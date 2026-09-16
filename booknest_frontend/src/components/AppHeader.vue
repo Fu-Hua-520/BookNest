@@ -2,7 +2,7 @@
 /**
  * 顶部导航：Logo、搜索、导航入口、未读角标、用户菜单
  */
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useBadgeStore } from '@/stores/badge'
@@ -14,8 +14,6 @@ const userStore = useUserStore()
 const badgeStore = useBadgeStore()
 
 const keyword = ref('')
-
-const profileLink = computed(() => (userStore.userId ? `/user/${userStore.userId}` : '/login'))
 
 function onSearch() {
   const value = keyword.value.trim()
@@ -37,6 +35,19 @@ function onCommand(command) {
     router.push({ name: 'admin-post' })
     return
   }
+  // 个人主页路由是 /user/:id，必须带上 id。
+  // 之前用 router.push({ name: 'user-profile' }) 少传了必填参数，
+  // vue-router 会直接中止这次导航（Missing required param "id"），
+  // 表现就是「点了没反应 / 打不开」。
+  if (command === 'user-profile') {
+    if (!userStore.userId) {
+      ElMessage.info('请先登录')
+      router.push({ name: 'login' })
+      return
+    }
+    router.push({ name: 'user-profile', params: { id: String(userStore.userId) } })
+    return
+  }
   router.push({ name: command })
 }
 </script>
@@ -52,10 +63,13 @@ function onCommand(command) {
 
       <!-- 主导航 -->
       <nav class="nav">
-        <router-link to="/" class="nav-link">首页</router-link>
+        <router-link to="/" class="nav-link" exact-active-class="nav-on">首页</router-link>
+        <router-link :to="{ name: 'bar-list' }" class="nav-link">
+          <el-icon><Grid /></el-icon>书吧
+        </router-link>
         <router-link to="/booklist" class="nav-link">书单</router-link>
-        <router-link to="/assistant" class="nav-link">
-          <el-icon><MagicStick /></el-icon>AI 助手
+        <router-link :to="{ name: 'bot-center' }" class="nav-link">
+          <el-icon><MagicStick /></el-icon>AI 机器人
         </router-link>
       </nav>
 
@@ -63,7 +77,7 @@ function onCommand(command) {
       <div class="search">
         <el-input
           v-model="keyword"
-          placeholder="搜索帖子、书籍、书单"
+          placeholder="搜索帖子、书籍、书单、书吧"
           clearable
           @keyup.enter="onSearch"
         >
@@ -101,8 +115,8 @@ function onCommand(command) {
                 <el-dropdown-item command="user-profile" :disabled="!userStore.userId">
                   <el-icon><User /></el-icon>个人主页
                 </el-dropdown-item>
-                <el-dropdown-item command="assistant">
-                  <el-icon><MagicStick /></el-icon>AI 助手
+                <el-dropdown-item command="bot-center">
+                  <el-icon><MagicStick /></el-icon>AI 机器人
                 </el-dropdown-item>
                 <el-dropdown-item v-if="userStore.isAdmin" command="admin" divided>
                   <el-icon><Setting /></el-icon>管理后台
@@ -113,9 +127,6 @@ function onCommand(command) {
               </el-dropdown-menu>
             </template>
           </el-dropdown>
-
-          <!-- 个人主页入口（dropdown 的 command 依赖动态路由，这里用隐式按钮兜底） -->
-          <router-link :to="profileLink" class="hidden-link" aria-hidden="true" />
         </template>
 
         <template v-else>
@@ -181,10 +192,11 @@ function onCommand(command) {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
+  padding: 6px 10px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13.5px;
   color: var(--bn-text-sub);
+  white-space: nowrap;
   transition: all 0.15s ease;
 }
 
@@ -193,7 +205,8 @@ function onCommand(command) {
   color: var(--bn-primary);
 }
 
-.nav-link.router-link-exact-active {
+.nav-link.router-link-exact-active,
+.nav-link.nav-on {
   color: var(--bn-primary);
   font-weight: 600;
   background: var(--bn-primary-soft);
@@ -287,11 +300,8 @@ function onCommand(command) {
   max-width: 84px;
 }
 
-.hidden-link {
-  display: none;
-}
-
-@media (max-width: 860px) {
+/* 导航项变多后，窄屏优先保证搜索框可用 */
+@media (max-width: 1040px) {
   .nav,
   .user-name {
     display: none;

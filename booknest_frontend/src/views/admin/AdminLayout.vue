@@ -14,11 +14,10 @@ const adminStore = useAdminStore()
 const MENUS = [
   { name: 'admin-post', path: '/admin/post', label: '帖子审核', icon: 'DocumentChecked' },
   { name: 'admin-book', path: '/admin/book', label: '书籍管理', icon: 'Reading' },
-  { name: 'admin-category', path: '/admin/category', label: '分类管理', icon: 'Grid' },
+  { name: 'admin-category', path: '/admin/category', label: '书吧管理', icon: 'Grid' },
   { name: 'admin-tag', path: '/admin/tag', label: '标签管理', icon: 'PriceTag' },
   { name: 'admin-user', path: '/admin/user', label: '用户管理', icon: 'UserFilled' },
-  { name: 'admin-quota', path: '/admin/quota', label: 'AI 额度', icon: 'MagicStick' },
-  { name: 'admin-embedding', path: '/admin/embedding', label: '向量库', icon: 'Cpu' }
+  { name: 'admin-bot', path: '/admin/bot', label: 'AI 机器人', icon: 'MagicStick' }
 ]
 
 const activeMenu = computed(() => route.path)

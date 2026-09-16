@@ -12,11 +12,6 @@ const year = new Date().getFullYear()
           <p class="footer-desc">以书为纽带，写下你的书评，建一份自己的书单。</p>
         </div>
       </div>
-      <div class="footer-links">
-        <router-link to="/booklist">书单广场</router-link>
-        <router-link to="/assistant">AI 助手</router-link>
-        <router-link to="/search">搜索</router-link>
-      </div>
       <p class="footer-copy">© {{ year }} BookNest · 仅供学习交流使用</p>
     </div>
   </footer>
@@ -67,17 +62,6 @@ const year = new Date().getFullYear()
 .footer-desc {
   font-size: 12.5px;
   color: var(--bn-text-muted);
-}
-
-.footer-links {
-  display: flex;
-  gap: 20px;
-  font-size: 13px;
-  color: var(--bn-text-sub);
-}
-
-.footer-links a:hover {
-  color: var(--bn-primary);
 }
 
 .footer-copy {

@@ -52,10 +52,21 @@ const routes = [
     meta: { title: '书单详情' }
   },
   {
-    path: '/category/:id',
-    name: 'category',
+    path: '/bars',
+    name: 'bar-list',
+    component: () => import('@/views/BarsView.vue'),
+    meta: { title: '书吧广场' }
+  },
+  {
+    path: '/bars/:id',
+    name: 'bar',
     component: () => import('@/views/CategoryView.vue'),
-    meta: { title: '分类' }
+    meta: { title: '书吧' }
+  },
+  // 兼容改造前的老链接：/category/:id 就是现在的书吧
+  {
+    path: '/category/:id',
+    redirect: (to) => ({ name: 'bar', params: { id: to.params.id } })
   },
   {
     path: '/tag/:id',
@@ -70,10 +81,10 @@ const routes = [
     meta: { title: '搜索' }
   },
   {
-    path: '/assistant',
-    name: 'assistant',
-    component: () => import('@/views/AssistantView.vue'),
-    meta: { title: 'AI 助手', requiresAuth: true }
+    path: '/bots',
+    name: 'bot-center',
+    component: () => import('@/views/BotCenterView.vue'),
+    meta: { title: 'AI 机器人', requiresAuth: true }
   },
   {
     path: '/chat',
@@ -145,7 +156,7 @@ const routes = [
         path: 'category',
         name: 'admin-category',
         component: () => import('@/views/admin/AdminCategoryView.vue'),
-        meta: { title: '分类管理' }
+        meta: { title: '书吧管理' }
       },
       {
         path: 'tag',
@@ -154,22 +165,16 @@ const routes = [
         meta: { title: '标签管理' }
       },
       {
+        path: 'bot',
+        name: 'admin-bot',
+        component: () => import('@/views/admin/AdminBotView.vue'),
+        meta: { title: 'AI 机器人' }
+      },
+      {
         path: 'user',
         name: 'admin-user',
         component: () => import('@/views/admin/AdminUserView.vue'),
         meta: { title: '用户管理' }
-      },
-      {
-        path: 'quota',
-        name: 'admin-quota',
-        component: () => import('@/views/admin/AdminQuotaView.vue'),
-        meta: { title: 'AI 额度' }
-      },
-      {
-        path: 'embedding',
-        name: 'admin-embedding',
-        component: () => import('@/views/admin/AdminEmbeddingView.vue'),
-        meta: { title: '向量库' }
       }
     ]
   },
