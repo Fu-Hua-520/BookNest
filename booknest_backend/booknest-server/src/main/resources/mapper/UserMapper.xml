@@ -26,6 +26,16 @@
         select * from booknest.`user` where id = #{userId}
     </select>
 
+    <!-- 按ID批量查询用户（列表组装用）。显式列出字段：避免把 password 带到内存里的展示对象上 -->
+    <select id="listByIds" resultType="com.fuhua.booknest.pojo.entity.User">
+        select id, account, username, phone, email, avatar, user_level, status, role, create_time, update_time
+        from booknest.`user`
+        where id in
+        <foreach collection="userIds" item="userId" open="(" separator="," close=")">
+            #{userId}
+        </foreach>
+    </select>
+
     <!-- 插入新用户 -->
     <insert id="insertUser" parameterType="com.fuhua.booknest.pojo.entity.User">
         insert into booknest.`user`(id, account, username, password, phone, email, avatar, user_level, status, role)
@@ -49,9 +59,33 @@
         order by create_time desc
     </select>
 
+    <!-- 按昵称 / 账号模糊搜索用户（任命吧务时挑人用）
+         只查三列，不碰手机号与邮箱：结果会返回给任意登录用户。 -->
+    <select id="searchBrief" resultType="com.fuhua.booknest.pojo.vo.UserBriefVO">
+        select id, username, avatar
+        from booknest.`user`
+        where status = 1
+          and (username like concat('%', #{keyword}, '%')
+               or account like concat('%', #{keyword}, '%'))
+        order by username asc
+        limit #{limit}
+    </select>
+
     <!-- 更新用户状态 -->
     <update id="updateStatus">
         update booknest.`user` set status = #{status} where id = #{id}
+    </update>
+
+    <!-- 更新用户资料（昵称 / 头像）。两者都按 if 判空，传 null 表示不动该字段；
+         调用方（UserServiceImpl.updateProfile）已保证至少有一个非空，
+         否则 <set> 会拼出空片段 → SQL 语法错误。 -->
+    <update id="updateProfile">
+        update booknest.`user`
+        <set>
+            <if test="username != null">username = #{username},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+        </set>
+        where id = #{id}
     </update>
 
     <!-- 更新用户角色 -->

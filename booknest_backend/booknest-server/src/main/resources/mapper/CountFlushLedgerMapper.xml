@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.CountFlushLedgerMapper">
+
+    <!-- 计数落库幂等账本。表结构见
+         booknest_data/sql/upgrade/2026-09-16-count-flush-ledger-upgrade.sql -->
+
+    <!-- 本批是否已经落过库（重试时用来判断「上次写库成功但确认删除失败」） -->
+    <select id="countBatch" resultType="int">
+        select count(*)
+        from booknest.`count_flush_ledger`
+        where batch_id = #{batchId}
+    </select>
+
+    <!-- 登记一批已落库的增量。applied_at 交给数据库取时间，
+         免得 JVM 与 MySQL 的时区设置不一致时记录出偏差 -->
+    <insert id="insert">
+        insert into booknest.`count_flush_ledger`(batch_id, applied_at)
+        values (#{batchId}, now())
+    </insert>
+
+    <!-- 清理过期登记。用 TIMESTAMPADD 而不是 DATE_SUB(NOW(), INTERVAL ? DAY)：
+         前者对占位符的支持在各版本上更一致，不会被解析成语法错误 -->
+    <delete id="deleteAppliedBeforeDays">
+        delete from booknest.`count_flush_ledger`
+        where applied_at &lt; timestampadd(day, -#{days}, now())
+    </delete>
+
+</mapper>
