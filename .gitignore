@@ -28,8 +28,13 @@ application-local.yml
 application-prod.yml
 
 # ---- 本机数据与工具目录 ----
-# Docker 挂载的数据卷（MySQL/Redis/RabbitMQ 二进制数据，绝不入库）
-booknest_data/
+# Docker 挂载的数据卷（MySQL/Redis/RabbitMQ 二进制数据），绝不入库。
+# ⚠️ 必须写成 booknest_data/* 而不是 booknest_data/：
+#    写成目录级排除时 git 根本不会进入该目录，booknest_data/sql 下的建表脚本
+#    与升级脚本会一并「隐形」——新脚本必须 git add -f 才能被发现，而漏加是
+#    静默的（git status 里看不到它）。先排除全部子项，再单独放行 sql/。
+booknest_data/*
+!booknest_data/sql/
 # AI 助手的本地工作记忆
 .workbuddy/
 
