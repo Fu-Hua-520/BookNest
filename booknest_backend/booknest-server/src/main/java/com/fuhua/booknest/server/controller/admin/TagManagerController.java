@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 /**
  * 管理后台 - 标签管理
- * <p>标签名全局唯一；使用次数由发帖流程维护，后台不直接修改</p>
+ * <p>标签名全局唯一；使用次数只读，由 post_tag 关联表实时统计（见 TagMapper.xml），后台不修改</p>
  */
 @RestController
 @RequestMapping("/admin/tag")
