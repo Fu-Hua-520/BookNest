@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface ChatMapper {
@@ -48,10 +49,16 @@ public interface ChatMapper {
     void updateLastMessage(@Param("id") String id, @Param("lastMessage") String lastMessage, @Param("lastMsgAt") LocalDateTime lastMsgAt);
 
     /**
-     * 插入私信消息
+     * 插入消息（私聊 / 群聊共用：群聊时 groupId 有值、receiverId 为 null）
      * @param message 消息实体
      */
     void insertMessage(ChatMsg message);
+
+    /**
+     * 解散群时清理该群全部消息
+     * @param groupId 群 ID
+     */
+    void deleteByGroupId(@Param("groupId") String groupId);
 
     /**
      * 分页查询会话消息（按发送时间倒序，取最近 offset/limit 条）
@@ -76,6 +83,17 @@ public interface ChatMapper {
      * @return 未读消息数
      */
     int countUnreadInConversation(@Param("conversationId") String conversationId, @Param("receiverId") String receiverId);
+
+    /**
+     * 按会话分组统计未读数：<b>一次</b>查完全部会话，替代「每个会话各查一次」。
+     *
+     * <p>原实现是「循环里逐条 countUnreadInConversation」，会话列表有 50 个会话就是 50 次 count(*)。
+     * 这里换成一条 {@code group by}，查询数从 N 降到 1。</p>
+     *
+     * @param receiverId 接收者用户ID
+     * @return [{ conversationId, unreadCount }]；无未读的会话不会出现在结果里（调用方按 0 处理）
+     */
+    List<Map<String, Object>> countUnreadGroupByConversation(@Param("receiverId") String receiverId);
 
     /**
      * 标记会话内消息已读

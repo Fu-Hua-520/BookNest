@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.ChatGroupMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true，
+         数据库列（snake_case）自动映射到实体属性（camelCase） -->
+
+    <!-- 新建群 -->
+    <insert id="insertGroup" parameterType="com.fuhua.booknest.pojo.entity.ChatGroup">
+        insert into booknest.`chat_group`(id, name, avatar, owner_id, notice, last_message, last_msg_at, create_time)
+        values (#{id}, #{name}, #{avatar}, #{ownerId}, #{notice}, #{lastMessage}, #{lastMsgAt}, #{createTime})
+    </insert>
+
+    <!-- 新增群成员 -->
+    <insert id="insertMember" parameterType="com.fuhua.booknest.pojo.entity.ChatGroupMember">
+        insert into booknest.`chat_group_member`(id, group_id, user_id, role, last_read_at, join_time)
+        values (#{id}, #{groupId}, #{userId}, #{role}, #{lastReadAt}, #{joinTime})
+    </insert>
+
+    <!-- 批量新增群成员 -->
+    <insert id="batchInsertMembers">
+        insert into booknest.`chat_group_member`(id, group_id, user_id, role, last_read_at, join_time)
+        values
+        <foreach collection="members" item="m" separator=",">
+            (#{m.id}, #{m.groupId}, #{m.userId}, #{m.role}, #{m.lastReadAt}, #{m.joinTime})
+        </foreach>
+    </insert>
+
+    <!-- 按群 ID 查询群 -->
+    <select id="findGroupById" resultType="com.fuhua.booknest.pojo.entity.ChatGroup">
+        select * from booknest.`chat_group` where id = #{id}
+    </select>
+
+    <!-- 查询成员关系 -->
+    <select id="findMember" resultType="com.fuhua.booknest.pojo.entity.ChatGroupMember">
+        select * from booknest.`chat_group_member`
+        where group_id = #{groupId} and user_id = #{userId}
+    </select>
+
+    <!-- 查询用户加入的所有群（按最后消息时间倒序；无消息的群 last_msg_at 为 null，在 desc 下自然排在最后） -->
+    <select id="listMyGroups" resultType="com.fuhua.booknest.pojo.entity.ChatGroup">
+        select g.*
+        from booknest.`chat_group` g
+        inner join booknest.`chat_group_member` m on m.group_id = g.id
+        where m.user_id = #{userId}
+        order by g.last_msg_at desc, g.create_time desc
+    </select>
+
+    <!-- 查询群成员（带用户名/头像）：群主排在最前 -->
+    <select id="listMembers" resultType="com.fuhua.booknest.pojo.vo.GroupMemberVO">
+        select m.user_id, u.username, u.avatar, m.role, m.join_time
+        from booknest.`chat_group_member` m
+        left join booknest.`user` u on u.id = m.user_id
+        where m.group_id = #{groupId}
+        order by (m.role = 'OWNER') desc, m.join_time asc
+    </select>
+
+    <!-- 查询群成员用户 ID 列表（消息广播用） -->
+    <select id="listMemberIds" resultType="java.lang.String">
+        select user_id from booknest.`chat_group_member` where group_id = #{groupId}
+    </select>
+
+    <!-- 统计群成员数 -->
+    <select id="countMembers" resultType="int">
+        select count(*) from booknest.`chat_group_member` where group_id = #{groupId}
+    </select>
+
+    <!-- 更新群最后一条消息预览 -->
+    <update id="updateLastMessage">
+        update booknest.`chat_group`
+        set last_message = #{lastMessage}, last_msg_at = #{lastMsgAt}
+        where id = #{id}
+    </update>
+
+    <!-- 更新群名称与公告（选择性更新） -->
+    <update id="updateGroup" parameterType="com.fuhua.booknest.pojo.entity.ChatGroup">
+        update booknest.`chat_group`
+        <set>
+            <if test="name != null">name = #{name},</if>
+            <if test="avatar != null">avatar = #{avatar},</if>
+            <if test="notice != null">notice = #{notice},</if>
+        </set>
+        where id = #{id}
+    </update>
+
+    <!-- 移除群成员 -->
+    <delete id="deleteMember">
+        delete from booknest.`chat_group_member` where group_id = #{groupId} and user_id = #{userId}
+    </delete>
+
+    <!-- 解散群：删除全部成员关系 -->
+    <delete id="deleteMembersByGroupId">
+        delete from booknest.`chat_group_member` where group_id = #{groupId}
+    </delete>
+
+    <!-- 解散群：删除群本身 -->
+    <delete id="deleteGroup">
+        delete from booknest.`chat_group` where id = #{groupId}
+    </delete>
+
+    <!-- 推进成员的已读位点 -->
+    <update id="updateLastReadAt">
+        update booknest.`chat_group_member`
+        set last_read_at = #{lastReadAt}
+        where group_id = #{groupId} and user_id = #{userId}
+    </update>
+
+    <!-- 群内未读数：last_read_at 之后、且不是自己发的消息 -->
+    <select id="countUnreadInGroup" resultType="int">
+        select count(*)
+        from booknest.`chat_message` msg
+        inner join booknest.`chat_group_member` m
+                on m.group_id = msg.group_id and m.user_id = #{userId}
+        where msg.group_id = #{groupId}
+          and msg.sender_id &lt;&gt; #{userId}
+          and (m.last_read_at is null or msg.create_time &gt; m.last_read_at)
+    </select>
+
+    <!-- 用户所有群的未读总数 -->
+    <select id="countUnreadGroups" resultType="int">
+        select count(*)
+        from booknest.`chat_message` msg
+        inner join booknest.`chat_group_member` m
+                on m.group_id = msg.group_id and m.user_id = #{userId}
+        where msg.sender_id &lt;&gt; #{userId}
+          and (m.last_read_at is null or msg.create_time &gt; m.last_read_at)
+    </select>
+
+    <!-- 按群名模糊搜索「我还没加入」的群，供「发现群聊」使用。
+         not exists 子查询排除已加入的群，避免用户看到自己已经在的群还不知道。
+         上限 30 条：这是个发现入口，不需要完整结果集。 -->
+    <select id="searchByName" resultType="com.fuhua.booknest.pojo.entity.ChatGroup">
+        select g.*
+        from booknest.`chat_group` g
+        where g.name like concat('%', #{keyword}, '%')
+          and not exists (
+              select 1 from booknest.`chat_group_member` m
+              where m.group_id = g.id and m.user_id = #{userId}
+          )
+        order by g.last_msg_at desc, g.create_time desc
+        limit 30
+    </select>
+
+</mapper>

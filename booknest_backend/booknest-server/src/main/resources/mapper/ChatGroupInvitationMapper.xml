@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.fuhua.booknest.server.mapper.ChatGroupInvitationMapper">
+
+    <!-- 结果映射依赖 application.yml 中 map-underscore-to-camel-case=true。
+         注意：本文件注释内不能出现连续两个短横线，分隔线一律用等号或波浪线。 -->
+
+    <!-- 新增一条邀请 / 加入申请 -->
+    <insert id="insert" parameterType="com.fuhua.booknest.pojo.entity.ChatGroupInvitation">
+        insert into booknest.`chat_group_invitation`(id, group_id, inviter_id, invitee_id, type, status,
+                                                    message, create_time, handle_time)
+        values (#{id}, #{groupId}, #{inviterId}, #{inviteeId}, #{type}, #{status},
+                #{message}, #{createTime}, #{handleTime})
+    </insert>
+
+    <!-- 按 ID 查询 -->
+    <select id="findById" resultType="com.fuhua.booknest.pojo.entity.ChatGroupInvitation">
+        select * from booknest.`chat_group_invitation` where id = #{id}
+    </select>
+
+    <!-- 查同方向是否已有待处理记录（防重复邀请 / 重复申请） -->
+    <select id="findOne" resultType="com.fuhua.booknest.pojo.entity.ChatGroupInvitation">
+        select * from booknest.`chat_group_invitation`
+        where group_id = #{groupId}
+          and invitee_id = #{inviteeId}
+          and type = #{type}
+          and status = #{status}
+        limit 1
+    </select>
+
+    <!-- 我收到的待确认邀请：把群信息与邀请人信息一并取出，前端一处即可渲染完整条目 -->
+    <select id="listMyInvitations" resultType="com.fuhua.booknest.pojo.vo.GroupInvitationVO">
+        select i.id, i.group_id, i.inviter_id, i.invitee_id, i.type, i.status, i.message,
+               i.create_time, i.handle_time,
+               g.name as group_name, g.avatar as group_avatar,
+               u.username as inviter_name, u.avatar as inviter_avatar,
+               (select count(*) from booknest.`chat_group_member` cm
+                 where cm.group_id = i.group_id) as member_count
+        from booknest.`chat_group_invitation` i
+        inner join booknest.`chat_group` g on g.id = i.group_id
+        left join booknest.`user` u on u.id = i.inviter_id
+        where i.invitee_id = #{inviteeId}
+          and i.type = 'INVITE'
+          and i.status = 'PENDING'
+        order by i.create_time desc
+    </select>
+
+    <!-- 某个群待审批的加入申请：这里的「申请人」是 invitee_id -->
+    <select id="listJoinRequests" resultType="com.fuhua.booknest.pojo.vo.GroupInvitationVO">
+        select i.id, i.group_id, i.inviter_id, i.invitee_id, i.type, i.status, i.message,
+               i.create_time, i.handle_time,
+               g.name as group_name, g.avatar as group_avatar,
+               u.username as invitee_name, u.avatar as invitee_avatar,
+               (select count(*) from booknest.`chat_group_member` cm
+                 where cm.group_id = i.group_id) as member_count
+        from booknest.`chat_group_invitation` i
+        inner join booknest.`chat_group` g on g.id = i.group_id
+        left join booknest.`user` u on u.id = i.invitee_id
+        where i.group_id = #{groupId}
+          and i.type = 'JOIN_REQUEST'
+          and i.status = 'PENDING'
+        order by i.create_time desc
+    </select>
+
+    <!-- 我发起的、仍待处理的加入申请对应的群 ID -->
+    <select id="listPendingJoinGroupIds" resultType="java.lang.String">
+        select group_id
+        from booknest.`chat_group_invitation`
+        where invitee_id = #{inviteeId}
+          and type = 'JOIN_REQUEST'
+          and status = 'PENDING'
+    </select>
+
+    <!-- 某群待审批的加入申请条数 -->
+    <select id="countPendingJoins" resultType="int">
+        select count(*)
+        from booknest.`chat_group_invitation`
+        where group_id = #{groupId}
+          and type = 'JOIN_REQUEST'
+          and status = 'PENDING'
+    </select>
+
+    <!-- 我（作为群主）名下所有群的待审批申请总数，导航红点用 -->
+    <select id="countPendingJoinsForOwner" resultType="int">
+        select count(*)
+        from booknest.`chat_group_invitation` i
+        inner join booknest.`chat_group` g on g.id = i.group_id
+        where g.owner_id = #{userId}
+          and i.type = 'JOIN_REQUEST'
+          and i.status = 'PENDING'
+    </select>
+
+    <!-- 更新处理状态 -->
+    <update id="updateStatus">
+        update booknest.`chat_group_invitation`
+        set status = #{status}, handle_time = #{handleTime}
+        where id = #{id}
+    </update>
+
+    <!-- 解散群时清理邀请记录 -->
+    <delete id="deleteByGroupId">
+        delete from booknest.`chat_group_invitation` where group_id = #{groupId}
+    </delete>
+
+</mapper>

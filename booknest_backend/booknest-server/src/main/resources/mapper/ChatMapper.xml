@@ -32,16 +32,23 @@
         update booknest.`chat_conversation` set last_message = #{lastMessage}, last_msg_at = #{lastMsgAt} where id = #{id}
     </update>
 
-    <!-- 插入私信消息 -->
+    <!-- 插入私信 / 群聊消息。
+         conversation_id 对私聊存会话ID、对群聊存群ID；
+         receiver_id 仅私聊有值，群聊为 NULL，接收方落到 group_id。 -->
     <insert id="insertMessage" parameterType="com.fuhua.booknest.pojo.entity.ChatMsg">
-        insert into booknest.`chat_message`(id, conversation_id, sender_id, receiver_id, content, is_read, create_time)
-        values (#{id}, #{conversationId}, #{senderId}, #{receiverId}, #{content}, #{isRead}, #{createTime})
+        insert into booknest.`chat_message`(id, conversation_id, sender_id, receiver_id, group_id, content, msg_type, is_read, create_time)
+        values (#{id}, #{conversationId}, #{senderId}, #{receiverId}, #{groupId}, #{content}, #{msgType}, #{isRead}, #{createTime})
     </insert>
 
     <!-- 分页查询会话消息（按发送时间倒序取最近，Service 层再反转为正序） -->
     <select id="findMessages" resultType="com.fuhua.booknest.pojo.entity.ChatMsg">
         select * from booknest.`chat_message` where conversation_id = #{conversationId} order by create_time desc limit #{offset}, #{limit}
     </select>
+
+    <!-- 解散群时清理群消息 -->
+    <delete id="deleteByGroupId">
+        delete from booknest.`chat_message` where group_id = #{groupId}
+    </delete>
 
     <!-- 统计用户未读消息总数 -->
     <select id="countUnread" resultType="int">
@@ -51,6 +58,17 @@
     <!-- 统计会话内未读消息数 -->
     <select id="countUnreadInConversation" resultType="int">
         select count(*) from booknest.`chat_message` where conversation_id = #{conversationId} and receiver_id = #{receiverId} and is_read = 0
+    </select>
+
+    <!-- 按会话分组统计未读数：一条 group by 取代「逐会话 count(*)」。
+         receiver_id 只有私聊才有值（群消息该列为 NULL），所以这里天然只统计私聊未读，
+         与 SQL 实现一致地保住了「群未读走 chat_group_member.last_read_at」的分工。
+         别名刻意写成 camelCase：Map 结果集用列标签当 key，不写别名会拿到 conversation_id。 -->
+    <select id="countUnreadGroupByConversation" resultType="java.util.Map">
+        select conversation_id as conversationId, count(*) as unreadCount
+        from booknest.`chat_message`
+        where receiver_id = #{receiverId} and is_read = 0
+        group by conversation_id
     </select>
 
     <!-- 标记会话内消息已读 -->
