@@ -105,25 +105,18 @@
             <artifactId>spring-boot-starter-websocket</artifactId>
         </dependency>
 
-        <!-- Spring AI - DeepSeek 原生对话模型 starter（版本由 spring-ai-bom 管理） -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-deepseek</artifactId>
-        </dependency>
-
-        <!-- Spring AI - OpenAI 兼容 starter（用于阿里云 DashScope embedding，版本由 spring-ai-bom 管理） -->
+        <!-- Spring AI - OpenAI 兼容 starter（唯一保留的 Spring AI 依赖）
+             评论区 AI 机器人的 DeepSeek 与阿里云百炼都通过 OpenAI 兼容协议调用：
+               DeepSeek  -> https://api.deepseek.com/v1/chat/completions
+               阿里云百炼 -> https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+             因此只需要这一个 starter 提供 OpenAiApi / OpenAiChatModel / ChatClient 这些类，
+             不需要 spring-ai-starter-model-deepseek，也不需要任何厂商专用 SDK。
+             注意：它的自动装配在 application.yml 里被显式关掉了
+             （spring.ai.model.chat / embedding = none），因为机器人的 Key 与模型
+             是运行时由用户填的，实例统一在 AiBotChatClientFactory 里动态构建。 -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-starter-model-openai</artifactId>
-        </dependency>
-
-        <!-- Spring AI - Qdrant 向量库 starter（版本由 spring-ai-bom 管理）
-             这一个 starter 会传递引入：qdrant 核心实现 + 自动配置模块 + 官方 gRPC 客户端。
-             只要 classpath 上有它并设置 spring.ai.vectorstore.type=qdrant，
-             Spring Boot 就会自动装配 QdrantClient 与 VectorStore 两个 Bean，无需手写 @Bean。 -->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-vector-store-qdrant</artifactId>
         </dependency>
 
         <!-- 测试依赖 -->
