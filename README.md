@@ -17,7 +17,7 @@
 | 对象存储 | 阿里云 OSS（3.17.4，无 MinIO） |
 | 接口文档 | SpringDoc OpenAPI 2.8.9（Swagger UI） |
 | 前端 | Vue 3.5 · Vite 6 · Pinia 2.3 · vue-router 4.5 · Element Plus 2.9 · axios · marked + highlight.js |
-| 部署 | Docker Compose · Nginx · GitHub Actions CI/CD |
+| 部署 | Docker Compose · Nginx |
 
 ## 功能特性
 
@@ -114,14 +114,17 @@ npm run dev          # http://127.0.0.1:5173，通过 Vite 代理转发 /api、/
 
 ## 部署
 
-`.github/workflows/ci.yml` 已配置 CI/CD：
+项目通过 Docker Compose **手动部署**，在服务器上拉取代码后重建即可：
 
-- **push / PR 到 `master`** → Maven 编译验证
-- **push 到 `master`** → 构建并推送后端镜像 → SSH 部署到服务器
+```bash
+git pull
+docker compose up -d --build
+```
 
-需在仓库 `Settings → Secrets and variables → Actions` 配置：
-`DOCKER_USERNAME`、`DOCKER_PASSWORD`、`SSH_HOST`、`SSH_USERNAME`、`SSH_KEY`、`DEPLOY_PATH`。
-运行期敏感配置一律由服务器上的 `.env` 注入，不进镜像。
+后端以 `prod` 环境启动（`Dockerfile` 内已指定），前端由 Nginx 托管并反向代理 `/api`、`/ws` 到后端。
+运行期敏感配置（DB / Redis / RabbitMQ / OSS / JWT）由服务器上的 `.env` 提供，不进镜像。
+
+> 仓库未配置自动化部署，发布流程由人工执行。
 
 ## 相关文档
 
