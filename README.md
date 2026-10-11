@@ -1,6 +1,7 @@
 # BookNest · 书籍交流社区
 
-一个以「书」为纽带的交流社区：发书评、建书单、逛书吧、关注书友，并内置一个可自建模型的**评论区 AI 机器人**。
+一个以「书」为纽带的交流社区：发书评、建书单、逛书吧、关注书友，并内置一个可自建模型的**评论区 AI 机器人**，
+以及一套基于 **RAG + Qdrant** 的**站内热点内容问答**。
 
 前后端分离，后端 Java 17 + Spring Boot 3 多模块，前端 Vue 3 + Vite，整套用 Docker Compose 一键拉起。
 
@@ -14,6 +15,7 @@
 | 持久层 | MyBatis 3.0.5 · MySQL 8 · Druid 1.2.21 · PageHelper 2.1.0 |
 | 缓存 / 消息 / 实时 | Redis 7 · RabbitMQ 3 · WebSocket |
 | 鉴权 | JWT（jjwt 0.12.6，用户端与管理端**双密钥隔离**） |
+| 向量检索 | Qdrant 1.13（本地容器，gRPC）· 阿里云百炼 `qwen3.7-text-embedding-flash`（1024 维） |
 | 对象存储 | 阿里云 OSS（3.17.4，无 MinIO） |
 | 接口文档 | SpringDoc OpenAPI 2.8.9（Swagger UI） |
 | 前端 | Vue 3.5 · Vite 6 · Pinia 2.3 · vue-router 4.5 · Element Plus 2.9 · axios · marked + highlight.js |
@@ -27,7 +29,10 @@
 - **私信与群聊**：WebSocket 实时收发，Redis pub/sub 支持多实例投递、ZSET 维护在线态
 - **通知**：RabbitMQ 异步解耦 + 可靠投递（confirm / return / 死信），幂等去重
 - **AI 机器人**：评论区机器人，厂商 / 模型 / API Key 由用户自填、管理员审核后动态生效（未使用平台级密钥）
-- **管理后台**：帖子审核、用户管理、书籍库、分类 / 标签、机器人审核
+- **热点内容问答（RAG）**：把点赞量前 N 的已过审帖子正文分块向量化进 Qdrant，提问时先检索再让 DeepSeek 依据检索结果作答；
+  由 `RAG_ENABLED` 单开关控制，关闭时不装配任何向量库 Bean（评测：Recall@1 81.7% / Recall@5 93.3% / Recall@10 95.0%，假阳性 0/5）；
+  用户端页面 `/hot-qa` 逐条列出引用出处，管理端 `/admin/rag` 可查看索引点数并手动全量重建
+- **管理后台**：帖子审核、用户管理、书籍库、分类 / 标签、机器人审核、**RAG 索引运维（配置查看 + 手动重建）**
 
 ## 目录结构
 
@@ -40,7 +45,6 @@ booknest/
 ├── booknest_frontend/           # 前端工程（Vue 3 + Vite）
 ├── booknest_data/
 │   └── sql/                     # 建表脚本 + upgrade/ 历史升级脚本
-├── docs/                        # 技术方案与优化文档
 ├── drafts/                      # 内容草稿
 ├── docker-compose.yml           # 全栈编排
 └── .env.example                 # 环境变量模板（复制为 .env 后填值）
@@ -126,9 +130,28 @@ docker compose up -d --build
 
 > 仓库未配置自动化部署，发布流程由人工执行。
 
+### ⚠️ 只改了一端时：必须带 `--build`，且要指明服务名
+
+`docker compose up -d` **不会重建镜像**，只是用已有镜像起容器。只改了代码却忘了 `--build`，
+表现就是「功能明明写了，容器里却没有」——尤其是前端。
+
+```bash
+docker compose up -d --build app     # 只改了后端
+docker compose up -d --build web     # 只改了前端
+docker compose up -d --build         # 两端都改了（全量）
+docker compose up -d                 # 只改了 .env（不涉及代码时）
+```
+
+**前端为什么特别容易踩**：`booknest_frontend/.dockerignore` 排除了 `dist`，所以容器里的页面
+**不是**用宿主机 `npm run build` 的产物，而是**构建镜像时在容器内重新 `npm run build` 生成的**。
+因此在宿主机跑一次 `npm run build` 对容器毫无影响 —— 它是给本机 `npm run dev` / 静态部署用的。
+判断镜像是否过期，最快的办法是看产物里有没有你要的那个页面：
+
+```bash
+docker images --format "{{.Repository}}:{{.Tag}}  {{.CreatedAt}}" | grep booknest
+docker exec booknest-web sh -c "ls /usr/share/nginx/html/assets/ | grep -i 你的页面名"
+```
+
 ## 相关文档
 
-- [`docs/PLAN.md`](docs/PLAN.md) —— 技术方案与页面设计
-- [`docs/技术要点-并发-Redis-MQ-查询优化.md`](docs/技术要点-并发-Redis-MQ-查询优化.md) —— 并发 / 缓存 / 消息 / 查询优化要点
-- [`docs/并发与性能优化方案.md`](docs/并发与性能优化方案.md) —— 并发与性能优化方案
 - [`booknest_frontend/README.md`](booknest_frontend/README.md) —— 前端说明

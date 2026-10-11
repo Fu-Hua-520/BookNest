@@ -38,6 +38,9 @@ booknest_data/*
 # AI 助手的本地工作记忆
 .workbuddy/
 
+# 本地文档（个人笔记 / 简历核查 / 评测记录，不进仓库）
+docs/
+
 # ---- 日志 ----
 logs/
 *.log
